@@ -42,6 +42,22 @@ def _debug_time(start: float, label: str) -> float:
     return now
 
 
+def _create_window(name: str) -> None:
+    """Create an OpenCV window and bring it to the foreground.
+
+    ``cv2.setWindowProperty`` with ``WND_PROP_TOPMOST`` is best-effort and
+    silently ignored if the current platform or OpenCV build does not support
+    it.  This ensures the preview window is visible instead of hiding behind
+    other applications.
+    """
+
+    cv2.namedWindow(name)
+    try:  # pragma: no cover - depends on GUI backend
+        cv2.setWindowProperty(name, cv2.WND_PROP_TOPMOST, 1)
+    except Exception:
+        pass
+
+
 def _is_v_sign(hand) -> bool:
     """Return ``True`` if the hand landmarks form a ``V`` gesture.
 
@@ -121,7 +137,7 @@ def test_camera() -> None:
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
     _debug_time(start, "after cap.isOpened")
-    cv2.namedWindow("Camera Test")
+    _create_window("Camera Test")
     _debug_time(start, "after namedWindow")
     print("Press 'q' to quit.")
     first_frame = True
@@ -168,7 +184,7 @@ def scan_document(
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
     _debug_time(start, "after cap.isOpened")
-    cv2.namedWindow("Scanner")
+    _create_window("Scanner")
     _debug_time(start, "after namedWindow")
     print("Press 's' to scan or 'q' to quit.")
 
