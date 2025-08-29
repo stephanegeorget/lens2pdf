@@ -395,7 +395,7 @@ def main() -> None:
             gesture_enabled=not args.no_gesture,
             boost_contrast=not args.no_contrast,
             output_dir=args.output_dir,
-            timeout=30,
+            timeout=60,
         ):
             pass
 
