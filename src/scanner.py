@@ -30,6 +30,29 @@ Image = ocr_utils.Image
 PREVIEW_SCALE = 0.5
 
 
+def _is_v_sign(hand) -> bool:
+    """Return ``True`` if the hand landmarks form a ``V`` gesture."""
+
+    lm = hand.landmark
+
+    def extended(tip, pip):
+        return lm[tip].y < lm[pip].y
+
+    def folded(tip, pip):
+        return lm[tip].y > lm[pip].y
+
+    # Index and middle fingers extended
+    if not (extended(8, 6) and extended(12, 10)):
+        return False
+    # Ring and pinky fingers folded
+    if not (folded(16, 14) and folded(20, 18)):
+        return False
+    # Tips reasonably far apart to form a V shape
+    if abs(lm[8].x - lm[12].x) < 0.1:
+        return False
+    return True
+
+
 def check_tesseract_installation() -> None:  # pragma: no cover - thin wrapper
     """Proxy to ``ocr_utils.check_tesseract_installation`` using local modules."""
     ocr_utils.shutil = shutil
@@ -77,7 +100,7 @@ def test_camera() -> None:
     cv2.destroyAllWindows()
 
 
-def scan_document(skip_detection: bool = False) -> None:
+def scan_document(skip_detection: bool = False, gesture_enabled: bool = True) -> None:
     """Run the interactive document scanner."""
     cameras = list_cameras()
     cam_index = select_camera(cameras)
@@ -88,6 +111,21 @@ def scan_document(skip_detection: bool = False) -> None:
         raise RuntimeError("Unable to open camera")
     cv2.namedWindow("Scanner")
     print("Press 's' to scan or 'q' to quit.")
+
+    # Hand gesture detector
+    hands = None
+    if gesture_enabled:
+        try:
+            import mediapipe as mp  # type: ignore
+
+            hands = mp.solutions.hands.Hands(
+                max_num_hands=1,
+                min_detection_confidence=0.7,
+                min_tracking_confidence=0.5,
+            )
+        except Exception:  # pragma: no cover - mediapipe optional
+            print("mediapipe not available, disabling gesture trigger")
+            gesture_enabled = False
 
     stdin_q: queue.Queue[str] = queue.Queue()
 
@@ -111,6 +149,41 @@ def scan_document(skip_detection: bool = False) -> None:
             contour = find_document_contour(frame)
             if contour is not None:
                 cv2.polylines(display, [contour], True, (0, 255, 0), 2)
+
+        if gesture_enabled and hands is not None:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = hands.process(rgb)
+            if results.multi_hand_landmarks and any(
+                _is_v_sign(h) for h in results.multi_hand_landmarks
+            ):
+                for i in (3, 2, 1):
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    display = frame.copy()
+                    cv2.putText(
+                        display,
+                        str(i),
+                        (display.shape[1] // 2 - 30, display.shape[0] // 2),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        4,
+                        (0, 0, 255),
+                        6,
+                        cv2.LINE_AA,
+                    )
+                    if PREVIEW_SCALE != 1.0:
+                        display = cv2.resize(
+                            display,
+                            (0, 0),
+                            fx=PREVIEW_SCALE,
+                            fy=PREVIEW_SCALE,
+                            interpolation=cv2.INTER_AREA,
+                        )
+                    cv2.imshow("Scanner", display)
+                    cv2.waitKey(1000)
+                ret, frame = cap.read()
+                break
+
         if PREVIEW_SCALE != 1.0:
             display = cv2.resize(
                 display,
@@ -169,11 +242,18 @@ def main() -> None:
         action="store_true",
         help="disable document bounding box and rotation detection",
     )
+    parser.add_argument(
+        "--no-gesture",
+        action="store_true",
+        help="disable hand gesture scan trigger",
+    )
     args = parser.parse_args()
     if args.test_camera:
         test_camera()
     else:
-        scan_document(skip_detection=args.no_detect)
+        scan_document(
+            skip_detection=args.no_detect, gesture_enabled=not args.no_gesture
+        )
 
 
 if __name__ == "__main__":
