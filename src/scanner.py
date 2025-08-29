@@ -161,14 +161,23 @@ def scan_document(skip_detection: bool = False, gesture_enabled: bool = True) ->
                     if not ret:
                         break
                     display = frame.copy()
+                    text = str(i)
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    font_scale = 16
+                    thickness = 12
+                    (text_width, text_height), _ = cv2.getTextSize(
+                        text, font, font_scale, thickness
+                    )
+                    x = (display.shape[1] - text_width) // 2
+                    y = (display.shape[0] + text_height) // 2
                     cv2.putText(
                         display,
-                        str(i),
-                        (display.shape[1] // 2 - 30, display.shape[0] // 2),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        4,
-                        (0, 0, 255),
-                        6,
+                        text,
+                        (x, y),
+                        font,
+                        font_scale,
+                        (0, 255, 0),
+                        thickness,
                         cv2.LINE_AA,
                     )
                     if PREVIEW_SCALE != 1.0:
