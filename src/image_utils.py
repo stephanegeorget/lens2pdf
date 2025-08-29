@@ -12,8 +12,20 @@ import pytesseract
 from .ocr_utils import check_tesseract_installation
 
 
-def find_document_contour(frame: np.ndarray) -> np.ndarray | None:
-    """Locate a rectangular contour in ``frame``."""
+def find_document_contour(
+    frame: np.ndarray, *, min_area_ratio: float = 0.1
+) -> np.ndarray | None:
+    """Locate a rectangular contour in ``frame``.
+
+    Parameters
+    ----------
+    frame:
+        Image in which to search for the document.
+    min_area_ratio:
+        Minimum area (as a fraction of the full frame) that a contour must
+        cover to be considered a document.  Smaller values allow detection of
+        documents that do not fill most of the camera view.
+    """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edged = cv2.Canny(blurred, 50, 150)
@@ -27,11 +39,11 @@ def find_document_contour(frame: np.ndarray) -> np.ndarray | None:
         peri = cv2.arcLength(c, True)
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
         area = cv2.contourArea(c)
-        if len(approx) == 4 and area > 0.5 * frame_area:
+        if len(approx) == 4 and area > min_area_ratio * frame_area:
             return approx
     if contours:
         area = cv2.contourArea(contours[0])
-        if area > 0.9 * frame_area:
+        if area > max(min_area_ratio, 0.9) * frame_area:
             return np.array(
                 [[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]],
                 dtype=np.float32,

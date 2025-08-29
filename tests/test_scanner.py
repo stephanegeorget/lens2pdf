@@ -108,36 +108,60 @@ def test_no_gesture_flag(monkeypatch):
     scanner = setup_fake_cv2(monkeypatch)
     called = {}
 
-    def fake_scan(*, skip_detection, gesture_enabled, boost_contrast, output_dir):
-        called["args"] = (skip_detection, gesture_enabled, boost_contrast, output_dir)
+    def fake_scan(
+        *, skip_detection, gesture_enabled, boost_contrast, output_dir, min_area_ratio=0.1
+    ):
+        called["args"] = (
+            skip_detection,
+            gesture_enabled,
+            boost_contrast,
+            output_dir,
+            min_area_ratio,
+        )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-gesture"])
     scanner.main()
 
-    assert called["args"] == (False, False, True, None)
+    assert called["args"] == (False, False, True, None, 0.1)
 
 
 def test_no_contrast_flag(monkeypatch):
     scanner = setup_fake_cv2(monkeypatch)
     called = {}
 
-    def fake_scan(*, skip_detection, gesture_enabled, boost_contrast, output_dir):
-        called["args"] = (skip_detection, gesture_enabled, boost_contrast, output_dir)
+    def fake_scan(
+        *, skip_detection, gesture_enabled, boost_contrast, output_dir, min_area_ratio=0.1
+    ):
+        called["args"] = (
+            skip_detection,
+            gesture_enabled,
+            boost_contrast,
+            output_dir,
+            min_area_ratio,
+        )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-contrast"])
     scanner.main()
 
-    assert called["args"] == (False, True, False, None)
+    assert called["args"] == (False, True, False, None, 0.1)
 
 
 def test_output_dir_flag(monkeypatch, tmp_path):
     scanner = setup_fake_cv2(monkeypatch)
     called = {}
 
-    def fake_scan(*, skip_detection, gesture_enabled, boost_contrast, output_dir):
-        called["args"] = (skip_detection, gesture_enabled, boost_contrast, output_dir)
+    def fake_scan(
+        *, skip_detection, gesture_enabled, boost_contrast, output_dir, min_area_ratio=0.1
+    ):
+        called["args"] = (
+            skip_detection,
+            gesture_enabled,
+            boost_contrast,
+            output_dir,
+            min_area_ratio,
+        )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
     monkeypatch.setattr(
@@ -147,7 +171,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
     )
     scanner.main()
 
-    assert called["args"] == (False, True, True, str(tmp_path))
+    assert called["args"] == (False, True, True, str(tmp_path), 0.1)
 
 
 def test_is_v_sign_sideways(monkeypatch):
