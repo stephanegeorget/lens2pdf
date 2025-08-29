@@ -297,11 +297,12 @@ def four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
 def correct_orientation(image: np.ndarray) -> np.ndarray:
     """Rotate ``image`` based on Tesseract's orientation detection."""
     check_tesseract_installation()
-    osd = pytesseract.image_to_osd(image)
+    osd = pytesseract.image_to_osd(image, config="--psm 0 --dpi 300")
     match = re.search(r"Rotate: (\d+)", osd)
     angle = int(match.group(1)) if match else 0
-    if angle:
-        image = rotate_bound(image, angle)
+    rotation = (360 - angle) % 360
+    if rotation:
+        image = rotate_bound(image, rotation)
     return image
 
 
@@ -321,7 +322,9 @@ def rotate_bound(image: np.ndarray, angle: int) -> np.ndarray:
 def save_pdf(image: np.ndarray) -> Path:
     """Save ``image`` with OCR text as a timestamped PDF file."""
     check_tesseract_installation()
-    pdf_bytes = pytesseract.image_to_pdf_or_hocr(image, extension="pdf")
+    pdf_bytes = pytesseract.image_to_pdf_or_hocr(
+        image, extension="pdf", config="--dpi 300"
+    )
     filename = datetime.now().strftime("%Y%m%d%H%M%S") + ".pdf"
     path = Path(filename)
     path.write_bytes(pdf_bytes)
