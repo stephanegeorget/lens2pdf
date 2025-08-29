@@ -48,7 +48,7 @@ def save_pdf(image, output_dir: Path | str | None = None) -> Path:
     check_tesseract_installation()
     pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     pil_img.info["dpi"] = (300, 300)
-    config = "--dpi 300 -c jpeg_quality=100"
+    config = "--dpi 300 -c jpg_quality=100"
     pdf_bytes = pytesseract.image_to_pdf_or_hocr(
         pil_img, extension="pdf", config=config
     )
