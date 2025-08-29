@@ -13,7 +13,10 @@ from .ocr_utils import check_tesseract_installation
 
 
 def find_document_contour(
-    frame: np.ndarray, *, min_area_ratio: float = 0.1
+    frame: np.ndarray,
+    *,
+    min_area_ratio: float = 0.1,
+    preview: np.ndarray | None = None,
 ) -> np.ndarray | None:
     """Locate a rectangular contour in ``frame``.
 
@@ -25,6 +28,10 @@ def find_document_contour(
         Minimum area (as a fraction of the full frame) that a contour must
         cover to be considered a document.  Smaller values allow detection of
         documents that do not fill most of the camera view.
+    preview:
+        Optional image on which a visual cue of the detected contour will be
+        drawn.  When provided and a contour is found, a green bounding box is
+        overlaid onto this image.  ``preview`` is modified in-place.
     """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -40,14 +47,19 @@ def find_document_contour(
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
         area = cv2.contourArea(c)
         if len(approx) == 4 and area > min_area_ratio * frame_area:
+            if preview is not None:
+                cv2.polylines(preview, [approx.astype(int)], True, (0, 255, 0), 2)
             return approx
     if contours:
         area = cv2.contourArea(contours[0])
         if area > max(min_area_ratio, 0.9) * frame_area:
-            return np.array(
+            fallback = np.array(
                 [[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]],
                 dtype=np.float32,
             )
+            if preview is not None:
+                cv2.polylines(preview, [fallback.astype(int)], True, (0, 255, 0), 2)
+            return fallback
     return None
 
 
@@ -87,7 +99,7 @@ def four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
     return cv2.warpPerspective(image, m, (max_width, max_height))
 
 
-def rotate_bound(image: np.ndarray, angle: int) -> np.ndarray:
+def rotate_bound(image: np.ndarray, angle: float) -> np.ndarray:
     """Rotate ``image`` by ``angle`` degrees without cropping."""
     (h, w) = image.shape[:2]
     m = cv2.getRotationMatrix2D((w / 2, h / 2), -angle, 1.0)
@@ -100,8 +112,52 @@ def rotate_bound(image: np.ndarray, angle: int) -> np.ndarray:
     return cv2.warpAffine(image, m, (n_w, n_h))
 
 
-def correct_orientation(image: np.ndarray) -> np.ndarray:
-    """Rotate ``image`` based on Tesseract's orientation detection."""
+def detect_dominant_edge_angle(image: np.ndarray) -> float:
+    """Return the angle of the strongest edge in ``image`` in degrees.
+
+    The image is converted to grayscale, edges are detected using Canny, and a
+    Hough transform is applied.  The line with the highest vote count (``cv2.HoughLines``)
+    or, if none are detected, the longest probabilistic line (``cv2.HoughLinesP``)
+    is used.  The returned angle represents the deviation from the vertical
+    axis; a perfectly upright edge yields ``0``.
+    """
+
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    lines = cv2.HoughLines(edges, 1, np.pi / 180, 100)
+    angle = 0.0
+    if lines is not None:
+        rho, theta = lines[0][0]
+        angle = np.degrees(theta) - 90
+    else:
+        lines_p = cv2.HoughLinesP(
+            edges, 1, np.pi / 180, threshold=100, minLineLength=20, maxLineGap=10
+        )
+        if lines_p is not None:
+            x1, y1, x2, y2 = max(
+                lines_p,
+                key=lambda l: np.hypot(l[0][2] - l[0][0], l[0][3] - l[0][1]),
+            )[0]
+            angle = np.degrees(np.arctan2(y2 - y1, x2 - x1)) - 90
+    # Normalize to [-90, 90)
+    angle = (angle + 90) % 180 - 90
+    return angle
+
+
+def correct_orientation(image: np.ndarray, contour: np.ndarray | None = None) -> np.ndarray:
+    """Rotate ``image`` using edge detection and Tesseract orientation.
+
+    If ``contour`` is ``None`` (indicating document contour detection failed),
+    the function first estimates the dominant edge angle and rotates the image
+    to make that edge upright.  It then performs an OCR-based orientation
+    detection to correct any remaining 90° multiples.
+    """
+
+    if contour is None:
+        theta = detect_dominant_edge_angle(image)
+        if abs(theta) > 0.1:
+            image = rotate_bound(image, theta)
+
     check_tesseract_installation()
     try:
         osd = pytesseract.image_to_osd(image)
@@ -124,6 +180,7 @@ __all__ = [
     "order_points",
     "four_point_transform",
     "rotate_bound",
+    "detect_dominant_edge_angle",
     "correct_orientation",
     "increase_contrast",
 ]
