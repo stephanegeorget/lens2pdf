@@ -323,7 +323,7 @@ def scan_document(
     if skip_detection:
         corrected = warped
     else:
-        corrected = correct_orientation(warped)
+        corrected = correct_orientation(warped, contour)
     if boost_contrast:
         corrected = increase_contrast(corrected)
     pdf_path = save_pdf(corrected, output_dir)

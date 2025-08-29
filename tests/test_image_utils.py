@@ -40,3 +40,22 @@ def test_find_document_contour_small_rotated():
     h, w = warped.shape[:2]
     assert abs(w - 80) <= 5
     assert abs(h - 60) <= 5
+
+
+def test_correct_orientation_fallback(monkeypatch):
+    import cv2
+
+    fake_pytesseract = types.SimpleNamespace(image_to_osd=lambda img: "Rotate: 0")
+    monkeypatch.setitem(sys.modules, "pytesseract", fake_pytesseract)
+
+    image_utils = importlib.import_module("src.image_utils")
+    importlib.reload(image_utils)
+    monkeypatch.setattr(image_utils, "check_tesseract_installation", lambda: None)
+
+    img = np.zeros((100, 100, 3), dtype=np.uint8)
+    cv2.line(img, (50, 0), (50, 99), (255, 255, 255), 2)
+    rotated = image_utils.rotate_bound(img, 30)
+
+    corrected = image_utils.correct_orientation(rotated, None)
+    angle = image_utils.detect_dominant_edge_angle(corrected)
+    assert abs(angle) < 1
