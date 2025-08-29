@@ -265,3 +265,67 @@ def test_open_pdf_windows(monkeypatch):
 
     assert opened["path"] == "doc.pdf"
 
+
+def test_scan_document_reuses_camera(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+
+    calls = {"list": 0, "select": 0, "open": 0}
+
+    def fake_list():
+        calls["list"] += 1
+        return [(0, "cam")]
+
+    def fake_select(_cams):
+        calls["select"] += 1
+        return 0
+
+    class FakeFrame:
+        shape = (1, 1, 3)
+
+        def copy(self):
+            return self
+
+    class FakeCapture:
+        def __init__(self, index):
+            calls["open"] += 1
+
+        def set(self, *_args):
+            pass
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return True, FakeFrame()
+
+        def release(self):
+            pass
+
+    fake_cv2 = SimpleNamespace(
+        VideoCapture=FakeCapture,
+        CAP_PROP_FRAME_WIDTH=0,
+        CAP_PROP_FRAME_HEIGHT=0,
+        imshow=lambda *a, **k: None,
+        waitKey=lambda *a, **k: ord("s"),
+        resize=lambda img, *a, **k: img,
+        destroyAllWindows=lambda: None,
+    )
+
+    monkeypatch.setattr(scanner, "cv2", fake_cv2)
+    monkeypatch.setattr(scanner, "list_cameras", fake_list)
+    monkeypatch.setattr(scanner, "select_camera", fake_select)
+    monkeypatch.setattr(scanner, "_create_window", lambda *_a: None)
+    monkeypatch.setattr(scanner, "increase_contrast", lambda img: img)
+    monkeypatch.setattr(scanner, "save_pdf", lambda img, out: Path("out.pdf"))
+    monkeypatch.setattr(scanner, "open_pdf", lambda _p: None)
+    monkeypatch.setattr(scanner, "find_document_contour", lambda *a, **k: None)
+    monkeypatch.setattr(scanner, "correct_orientation", lambda img, _c: img)
+    monkeypatch.setattr(scanner, "four_point_transform", lambda img, _c: img)
+    monkeypatch.setattr(scanner, "sys", SimpleNamespace(stdin=SimpleNamespace(read=lambda n: "")))
+    monkeypatch.setattr(scanner, "PREVIEW_SCALE", 1.0)
+
+    scanner.scan_document(skip_detection=True, gesture_enabled=False, boost_contrast=False)
+    scanner.scan_document(skip_detection=True, gesture_enabled=False, boost_contrast=False)
+
+    assert calls == {"list": 1, "select": 1, "open": 1}
+
