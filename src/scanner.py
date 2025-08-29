@@ -8,8 +8,10 @@ import sys
 import threading
 import queue
 from dataclasses import dataclass
+import select
 from datetime import datetime
 from pathlib import Path
+import shutil
 
 import cv2
 import numpy as np
@@ -90,6 +92,54 @@ def list_cameras(max_devices: int = 5) -> list[CameraInfo]:
         pass
 
     print("Falling back to probing camera indices...")
+def check_tesseract_installation() -> None:
+    """Ensure that the Tesseract executable is available.
+
+    On Windows the project expects Tesseract to be installed in
+    ``C:\\pf\\Tesseract-OCR``. If the executable cannot be located,
+    a ``RuntimeError`` is raised with installation instructions.
+    """
+
+    cmd = shutil.which("tesseract")
+    if cmd:
+        return
+
+    win_path = Path("C:/pf/Tesseract-OCR/tesseract.exe")
+    if win_path.is_file():
+        if hasattr(pytesseract, "pytesseract") and hasattr(
+            pytesseract.pytesseract, "tesseract_cmd"
+        ):
+            pytesseract.pytesseract.tesseract_cmd = str(win_path)
+        return
+
+    raise RuntimeError(
+        "Tesseract OCR is required. Install it from "
+        "https://github.com/UB-Mannheim/tesseract/wiki and ensure it "
+        "is installed in C:\\pf\\Tesseract-OCR."
+    )
+
+
+def list_cameras(max_devices: int = 5) -> list[tuple[int, str]]:
+    """Return a list of available camera indices and names."""
+    cameras: list[tuple[int, str]] = []
+
+    # Newer OpenCV versions expose rich camera information via the
+    # ``videoio_registry`` module.  This provides the human readable name of
+    # the device which allows us to match against ``CAMERA_REGEX`` below.  If
+    # this API is available we use it exclusively.
+    try:  # pragma: no cover - registry functions are best effort
+        registry = getattr(cv2, "videoio_registry", None)
+        if registry is not None and hasattr(registry, "getCameraInfoList"):
+            infos = registry.getCameraInfoList()  # type: ignore[attr-defined]
+            for info in infos:
+                idx = getattr(info, "id", getattr(info, "index", None))
+                name = getattr(info, "name", "") or f"Camera {idx}"
+                cameras.append((int(idx), str(name)))
+            if cameras:
+                return cameras
+    except Exception:
+        pass
+
     # Fallback: attempt to open the first ``max_devices`` indices and query a
     # descriptive name via ``CAP_PROP_DEVICE_DESCRIPTION`` if supported.
     for index in range(max_devices):
@@ -100,6 +150,7 @@ def list_cameras(max_devices: int = 5) -> list[CameraInfo]:
             hw = None
             if hasattr(cv2, "CAP_PROP_DEVICE_DESCRIPTION"):
                 try:
+
                     d = cap.get(cv2.CAP_PROP_DEVICE_DESCRIPTION)  # type: ignore[attr-defined]
                     if isinstance(d, str) and d:
                         name = d
@@ -156,36 +207,51 @@ def select_camera(cameras: list[CameraInfo]) -> int:
         extra_str = f" {extras}" if extras else ""
         print(f"[{cam.index}] {cam.name} {label}{extra_str}")
     print("Press Enter within 2 seconds to select another camera index.")
-
-    q: queue.Queue[str] = queue.Queue()
-
-    def reader() -> None:
-        q.put(input())
-
-    t = threading.Thread(target=reader)
-    t.daemon = True
-    t.start()
+    print("> ", end="", flush=True)
     try:
-        choice = q.get(timeout=2).strip()
-        if choice.isdigit():
-            return int(choice)
-    except queue.Empty:
+        ready, _, _ = select.select([sys.stdin], [], [], 2)
+        if ready:
+            choice = sys.stdin.readline().strip()
+            if choice.isdigit():
+                return int(choice)
+    except Exception:  # pragma: no cover - best effort
         pass
     return default
 
 
 def find_document_contour(frame: np.ndarray) -> np.ndarray | None:
-    """Locate a rectangular contour in ``frame``."""
+    """Locate a rectangular contour in ``frame``.
+
+    The parameters are tuned for large documents that almost fill the
+    camera view.  When no suitable contour is found, the function
+    returns the image bounds if the largest contour nearly covers the
+    entire frame.
+    """
+
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edged = cv2.Canny(blurred, 75, 200)
-    contours, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+    # Lower Canny thresholds to better pick up faint edges at the image
+    # border when the document occupies most of the frame.
+    edged = cv2.Canny(blurred, 50, 150)
+    contours, _ = cv2.findContours(
+        edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    height, width = frame.shape[:2]
+    frame_area = width * height
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
     for c in contours:
         peri = cv2.arcLength(c, True)
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-        if len(approx) == 4:
+        area = cv2.contourArea(c)
+        if len(approx) == 4 and area > 0.5 * frame_area:
             return approx
+    if contours:
+        area = cv2.contourArea(contours[0])
+        if area > 0.9 * frame_area:
+            return np.array(
+                [[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]],
+                dtype=np.float32,
+            )
     return None
 
 
@@ -222,6 +288,7 @@ def four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
 
 def correct_orientation(image: np.ndarray) -> np.ndarray:
     """Rotate ``image`` based on Tesseract's orientation detection."""
+    check_tesseract_installation()
     osd = pytesseract.image_to_osd(image)
     match = re.search(r"Rotate: (\d+)", osd)
     angle = int(match.group(1)) if match else 0
@@ -245,6 +312,7 @@ def rotate_bound(image: np.ndarray, angle: int) -> np.ndarray:
 
 def save_pdf(image: np.ndarray) -> Path:
     """Save ``image`` with OCR text as a timestamped PDF file."""
+    check_tesseract_installation()
     pdf_bytes = pytesseract.image_to_pdf_or_hocr(image, extension="pdf")
     filename = datetime.now().strftime("%Y%m%d%H%M%S") + ".pdf"
     path = Path(filename)
@@ -327,10 +395,11 @@ def scan_document() -> None:
     if frame is None:
         return
     contour = find_document_contour(frame)
-    if contour is None:
-        print("No document detected.")
-        return
-    warped = four_point_transform(frame, contour)
+    if contour is not None:
+        warped = four_point_transform(frame, contour)
+    else:
+        print("No document detected; using full frame.")
+        warped = frame
     corrected = correct_orientation(warped)
     pdf_path = save_pdf(corrected)
     print(f"Saved {pdf_path}")
