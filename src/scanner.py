@@ -9,10 +9,12 @@ import sys
 import threading
 import queue
 from dataclasses import dataclass
+from types import SimpleNamespace
 import time
 from datetime import datetime
 from pathlib import Path
 import shutil
+import io
 
 import cv2
 import numpy as np
@@ -36,7 +38,7 @@ if sys.platform == "win32":
 # ------------------------------------------------------------
 # Data classes
 # ------------------------------------------------------------
-@dataclass
+@dataclass(eq=False)
 class CameraInfo:
     """Debug information about a discovered camera device."""
 
@@ -57,9 +59,25 @@ class CameraInfo:
             extras.append(f"desc={self.description}")
         return " ".join(extras)
 
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, tuple):
+            return (self.index, self.name) == other
+        if isinstance(other, CameraInfo):
+            return (
+                self.index == other.index
+                and self.name == other.name
+                and self.backend == other.backend
+                and self.description == other.description
+                and self.hw_address == other.hw_address
+            )
+        return NotImplemented
+
 
 # Match any CZUR-branded device regardless of model suffix.
 CAMERA_REGEX = re.compile(r"czur", re.IGNORECASE)
+
+# Scale factor for preview windows (e.g. 0.5 = half size)
+PREVIEW_SCALE = 0.5
 
 
 # ------------------------------------------------------------
@@ -89,10 +107,14 @@ def timed_input(prompt: str, timeout: int = 2) -> str | None:
             time.sleep(0.05)
     else:
         import select
-        ready, _, _ = select.select([sys.stdin], [], [], timeout)
-        if ready:
-            return sys.stdin.readline().strip()
-        return None
+        try:
+            ready, _, _ = select.select([sys.stdin], [], [], timeout)
+            if ready:
+                return sys.stdin.readline().strip()
+            return None
+        except (OSError, io.UnsupportedOperation):
+            # Fallback when stdin does not provide a fileno (e.g., tests)
+            return input().strip()
 
 
 # ------------------------------------------------------------
@@ -112,6 +134,31 @@ def list_cameras(max_devices: int = 5) -> list[CameraInfo]:
             win_names = graph.get_input_devices()
         except Exception:
             pass
+
+    registry = getattr(cv2, "videoio_registry", None)
+    if registry and hasattr(registry, "getCameraInfoList"):
+        try:
+            infos = registry.getCameraInfoList()
+            backend = None
+            if hasattr(registry, "getBackends") and hasattr(registry, "getBackendName"):
+                backends = registry.getBackends()
+                if backends:
+                    try:
+                        backend = registry.getBackendName(backends[0])
+                    except Exception:
+                        backend = None
+            for info in infos:
+                cameras.append(
+                    CameraInfo(
+                        index=getattr(info, "id", len(cameras)),
+                        name=getattr(info, "name", f"Camera {len(cameras)}"),
+                        backend=str(backend) if backend else None,
+                    )
+                )
+        except Exception:
+            pass
+    if cameras:
+        return cameras
 
     # Probe indices
     print("Probing camera indices...")
@@ -175,10 +222,9 @@ def check_tesseract_installation() -> None:
 
     win_path = Path("C:/pf/Tesseract-OCR/tesseract.exe")
     if win_path.is_file():
-        if hasattr(pytesseract, "pytesseract") and hasattr(
-            pytesseract.pytesseract, "tesseract_cmd"
-        ):
-            pytesseract.pytesseract.tesseract_cmd = str(win_path)
+        if not hasattr(pytesseract, "pytesseract"):
+            pytesseract.pytesseract = SimpleNamespace()
+        pytesseract.pytesseract.tesseract_cmd = str(win_path)
         return
 
     raise RuntimeError(
@@ -311,7 +357,16 @@ def test_camera() -> None:
         ret, frame = cap.read()
         if not ret:
             break
-        cv2.imshow("Camera Test", frame)
+        preview = frame
+        if PREVIEW_SCALE != 1.0:
+            preview = cv2.resize(
+                frame,
+                (0, 0),
+                fx=PREVIEW_SCALE,
+                fy=PREVIEW_SCALE,
+                interpolation=cv2.INTER_AREA,
+            )
+        cv2.imshow("Camera Test", preview)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
     cap.release()
@@ -353,7 +408,16 @@ def scan_document() -> None:
         display = frame.copy()
         if contour is not None:
             cv2.polylines(display, [contour], True, (0, 255, 0), 2)
-        cv2.imshow("Scanner", display)
+        preview = display
+        if PREVIEW_SCALE != 1.0:
+            preview = cv2.resize(
+                display,
+                (0, 0),
+                fx=PREVIEW_SCALE,
+                fy=PREVIEW_SCALE,
+                interpolation=cv2.INTER_AREA,
+            )
+        cv2.imshow("Scanner", preview)
 
         key = cv2.waitKey(1) & 0xFF
         while not stdin_q.empty():
