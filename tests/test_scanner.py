@@ -2,6 +2,7 @@ from types import SimpleNamespace
 import importlib
 import sys
 from pathlib import Path
+import numpy as np
 import pytest
 
 
@@ -33,10 +34,10 @@ def setup_fake_cv2(monkeypatch):
         __version__="4.8.0",
     )
     # ``scanner`` imports ``cv2``, ``numpy`` and ``pytesseract`` at module import
-    # time.  Provide lightweight stubs for these modules so the import succeeds
-    # without requiring the heavy dependencies.
+    # time.  Provide a stub for ``cv2`` and ``pytesseract`` while using the real
+    # NumPy implementation so image stacking logic can be exercised.
     monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
-    monkeypatch.setitem(sys.modules, "numpy", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "numpy", np)
     monkeypatch.setitem(sys.modules, "pytesseract", SimpleNamespace())
 
     import src.scanner as scanner
@@ -115,6 +116,7 @@ def test_no_gesture_flag(monkeypatch):
         boost_contrast,
         output_dir,
         timeout=None,
+        stack_count=10,
         min_area_ratio=0.1,
     ):
         called["args"] = (
@@ -122,6 +124,7 @@ def test_no_gesture_flag(monkeypatch):
             gesture_enabled,
             boost_contrast,
             output_dir,
+            stack_count,
             min_area_ratio,
         )
 
@@ -129,7 +132,7 @@ def test_no_gesture_flag(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-gesture"])
     scanner.main()
 
-    assert called["args"] == (False, False, True, None, 0.1)
+    assert called["args"] == (False, False, True, None, 10, 0.1)
 
 
 def test_no_contrast_flag(monkeypatch):
@@ -143,6 +146,7 @@ def test_no_contrast_flag(monkeypatch):
         boost_contrast,
         output_dir,
         timeout=None,
+        stack_count=10,
         min_area_ratio=0.1,
     ):
         called["args"] = (
@@ -150,6 +154,7 @@ def test_no_contrast_flag(monkeypatch):
             gesture_enabled,
             boost_contrast,
             output_dir,
+            stack_count,
             min_area_ratio,
         )
 
@@ -157,7 +162,7 @@ def test_no_contrast_flag(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-contrast"])
     scanner.main()
 
-    assert called["args"] == (False, True, False, None, 0.1)
+    assert called["args"] == (False, True, False, None, 10, 0.1)
 
 
 def test_output_dir_flag(monkeypatch, tmp_path):
@@ -171,6 +176,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
         boost_contrast,
         output_dir,
         timeout=None,
+        stack_count=10,
         min_area_ratio=0.1,
     ):
         called["args"] = (
@@ -178,6 +184,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
             gesture_enabled,
             boost_contrast,
             output_dir,
+            stack_count,
             min_area_ratio,
         )
 
@@ -189,7 +196,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
     )
     scanner.main()
 
-    assert called["args"] == (False, True, True, str(tmp_path), 0.1)
+    assert called["args"] == (False, True, True, str(tmp_path), 10, 0.1)
 
 
 def test_default_timeout(monkeypatch):
@@ -203,6 +210,7 @@ def test_default_timeout(monkeypatch):
         boost_contrast,
         output_dir,
         timeout=None,
+        stack_count=10,
         min_area_ratio=0.1,
     ):
         called["timeout"] = timeout
@@ -301,12 +309,6 @@ def test_scan_document_reuses_camera(monkeypatch):
         calls["select"] += 1
         return 0
 
-    class FakeFrame:
-        shape = (1, 1, 3)
-
-        def copy(self):
-            return self
-
     class FakeCapture:
         def __init__(self, index):
             calls["open"] += 1
@@ -318,7 +320,7 @@ def test_scan_document_reuses_camera(monkeypatch):
             return True
 
         def read(self):
-            return True, FakeFrame()
+            return True, np.zeros((1, 1, 3), dtype=np.uint8)
 
         def release(self):
             pass
@@ -351,4 +353,65 @@ def test_scan_document_reuses_camera(monkeypatch):
     scanner.scan_document(skip_detection=True, gesture_enabled=False, boost_contrast=False)
 
     assert calls == {"list": 1, "select": 1, "open": 1}
+
+
+def test_scan_document_stacks_frames(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+
+    class FakeCapture:
+        def __init__(self, index):
+            self.count = 0
+
+        def set(self, *_):
+            pass
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            frame = np.full((1, 1, 3), self.count, dtype=np.uint8)
+            self.count += 1
+            return True, frame
+
+        def release(self):
+            pass
+
+    fake_cv2 = SimpleNamespace(
+        VideoCapture=FakeCapture,
+        CAP_PROP_FRAME_WIDTH=0,
+        CAP_PROP_FRAME_HEIGHT=0,
+        imshow=lambda *a, **k: None,
+        waitKey=lambda *a, **k: ord("s"),
+        resize=lambda img, *a, **k: img,
+        destroyAllWindows=lambda: None,
+    )
+
+    monkeypatch.setattr(scanner, "cv2", fake_cv2)
+    monkeypatch.setattr(scanner, "list_cameras", lambda: [(0, "cam")])
+    monkeypatch.setattr(scanner, "select_camera", lambda _c: 0)
+    monkeypatch.setattr(scanner, "_create_window", lambda *_: None)
+    monkeypatch.setattr(scanner, "find_document_contour", lambda *a, **k: None)
+    monkeypatch.setattr(scanner, "correct_orientation", lambda img: img)
+    monkeypatch.setattr(scanner, "four_point_transform", lambda img, _c: img)
+    monkeypatch.setattr(scanner, "increase_contrast", lambda img: img)
+    saved = {}
+
+    def fake_save(img, out):
+        saved["img"] = img.copy()
+        return Path("out.pdf")
+
+    monkeypatch.setattr(scanner, "save_pdf", fake_save)
+    monkeypatch.setattr(scanner, "open_pdf", lambda _p: None)
+    monkeypatch.setattr(scanner, "sys", SimpleNamespace(stdin=SimpleNamespace(read=lambda n: "")))
+    monkeypatch.setattr(scanner, "PREVIEW_SCALE", 1.0)
+
+    scanner.scan_document(
+        skip_detection=True,
+        gesture_enabled=False,
+        boost_contrast=False,
+        stack_count=3,
+    )
+
+    # Frames values were 0, 1 and 2 -> average = 1
+    assert saved["img"][0, 0, 0] == 1
 

@@ -82,5 +82,17 @@ After activating the virtual environment you can run:
 pytest
 ```
 
-## License
-This project is provided as-is without any warranty.
+This displays the raw camera feed. Press `q` to quit. Running the script
+without the flag starts the full scanning workflow. For each scan the camera
+captures multiple frames (10 by default) and averages them to reduce noise and
+recover finer detail when the document remains still.
+
+### Tesseract OCR
+
+The scanner relies on [Tesseract OCR](https://github.com/tesseract-ocr/tesseract)
+for orientation detection and text extraction. The application checks for the
+`tesseract` executable at runtime. If it is not found, a helpful error message
+is raised with installation instructions. On Windows the project expects
+Tesseract to be installed in `C:\pf\Tesseract-OCR` (where
+`tesseract.exe` resides). A convenient Windows installer is available from the
+[UB Mannheim build](https://github.com/UB-Mannheim/tesseract/wiki).
