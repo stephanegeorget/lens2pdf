@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 import threading
 import queue
 from datetime import datetime
@@ -158,7 +159,23 @@ def scan_document() -> None:
     cap = cv2.VideoCapture(cam_index)
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
+    cv2.namedWindow("Scanner")
     print("Press 's' to scan or 'q' to quit.")
+
+    # Read single characters from stdin so the user can exit even if the
+    # OpenCV window fails to appear or loses focus.  This mirrors the
+    # behaviour of ``cv2.waitKey`` which captures key presses in the window.
+    stdin_q: queue.Queue[str] = queue.Queue()
+
+    def stdin_reader() -> None:
+        while True:  # pragma: no cover - best effort for interactive use
+            ch = sys.stdin.read(1)
+            if not ch:
+                break
+            stdin_q.put(ch)
+
+    threading.Thread(target=stdin_reader, daemon=True).start()
+
     frame = None
     while True:
         ret, frame = cap.read()
@@ -169,12 +186,22 @@ def scan_document() -> None:
         if contour is not None:
             cv2.polylines(display, [contour], True, (0, 255, 0), 2)
         cv2.imshow("Scanner", display)
+
+        # Gather key presses from the OpenCV window and the terminal.
         key = cv2.waitKey(1) & 0xFF
+        while not stdin_q.empty():
+            char = stdin_q.get_nowait().lower()
+            if char == "q":
+                key = ord("q")
+            elif char == "s":
+                key = ord("s")
+
         if key in (ord("s"), 13):
             break
         if key == ord("q"):
             frame = None
             break
+
     cap.release()
     cv2.destroyAllWindows()
     if frame is None:
