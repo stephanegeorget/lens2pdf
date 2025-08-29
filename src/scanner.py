@@ -20,16 +20,35 @@ CAMERA_REGEX = re.compile(r"czur\s+lens", re.IGNORECASE)
 def list_cameras(max_devices: int = 5) -> list[tuple[int, str]]:
     """Return a list of available camera indices and names."""
     cameras: list[tuple[int, str]] = []
+
+    # Newer OpenCV versions expose rich camera information via the
+    # ``videoio_registry`` module.  This provides the human readable name of
+    # the device which allows us to match against ``CAMERA_REGEX`` below.  If
+    # this API is available we use it exclusively.
+    try:  # pragma: no cover - registry functions are best effort
+        registry = getattr(cv2, "videoio_registry", None)
+        if registry is not None and hasattr(registry, "getCameraInfoList"):
+            infos = registry.getCameraInfoList()  # type: ignore[attr-defined]
+            for info in infos:
+                idx = getattr(info, "id", getattr(info, "index", None))
+                name = getattr(info, "name", "") or f"Camera {idx}"
+                cameras.append((int(idx), str(name)))
+            if cameras:
+                return cameras
+    except Exception:
+        pass
+
+    # Fallback: attempt to open the first ``max_devices`` indices and query a
+    # descriptive name via ``CAP_PROP_DEVICE_DESCRIPTION`` if supported.
     for index in range(max_devices):
         cap = cv2.VideoCapture(index)
         if cap.isOpened():
             name = f"Camera {index}"
             if hasattr(cv2, "CAP_PROP_DEVICE_DESCRIPTION"):
                 try:
-                    # Some platforms expose the device name via this property
-                    prop = cap.get(cv2.CAP_PROP_DEVICE_DESCRIPTION)
-                    if isinstance(prop, str) and prop:
-                        name = prop
+                    desc = cap.get(cv2.CAP_PROP_DEVICE_DESCRIPTION)  # type: ignore[attr-defined]
+                    if isinstance(desc, str) and desc:
+                        name = desc
                 except Exception:  # pragma: no cover - best effort
                     pass
             cameras.append((index, name))
