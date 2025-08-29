@@ -34,6 +34,10 @@ Image = ocr_utils.Image
 # Scale factor for preview windows (e.g. 0.5 = half size)
 PREVIEW_SCALE = 0.5
 
+# Cache an opened camera so subsequent scans can reuse the stream without
+# re-enumerating available devices which can take a long time.
+_cached_cap: cv2.VideoCapture | None = None
+
 
 def _debug_time(start: float, label: str) -> float:
     """Print a debug message showing elapsed time since ``start``."""
@@ -169,31 +173,44 @@ def scan_document(
     gesture_enabled: bool = True,
     boost_contrast: bool = True,
     output_dir: Path | str | None = None,
+    timeout: float | None = None,
     *,
     min_area_ratio: float = 0.1,
-) -> None:
+) -> bool:
     """Run the interactive document scanner.
 
     Parameters
     ----------
+    timeout:
+        Maximum number of seconds to wait for a scan request before exiting.
+        ``None`` disables the timeout.
     min_area_ratio:
         Forwarded to :func:`src.image_utils.find_document_contour` to control the
         minimum size of detectable documents.
+    Returns
+    -------
+    bool
+        ``True`` if a document was scanned, ``False`` otherwise.
     """
     start = time.perf_counter()
     print("[DEBUG] Starting scan_document")
-    cameras = list_cameras()
-    _debug_time(start, "after list_cameras")
-    cam_index = select_camera(cameras)
-    _debug_time(start, "after select_camera")
-    cap = cv2.VideoCapture(cam_index)
-    _debug_time(start, "after VideoCapture")
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
-    _debug_time(start, "after setting resolution")
-    if not cap.isOpened():
-        raise RuntimeError("Unable to open camera")
-    _debug_time(start, "after cap.isOpened")
+
+    global _cached_cap
+    if _cached_cap is None:
+        cameras = list_cameras()
+        _debug_time(start, "after list_cameras")
+        cam_index = select_camera(cameras)
+        _debug_time(start, "after select_camera")
+        _cached_cap = cv2.VideoCapture(cam_index)
+        _debug_time(start, "after VideoCapture")
+        _cached_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
+        _cached_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
+        _debug_time(start, "after setting resolution")
+        if not _cached_cap.isOpened():
+            raise RuntimeError("Unable to open camera")
+        _debug_time(start, "after cap.isOpened")
+    cap = _cached_cap
+
     _create_window("Scanner")
     _debug_time(start, "after namedWindow")
     print("Press 's' to scan or 'q' to quit.")
@@ -227,6 +244,7 @@ def scan_document(
     frame = None
     contour = None
     first_frame = True
+    wait_start = time.monotonic()
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -236,9 +254,9 @@ def scan_document(
             first_frame = False
         display = frame.copy()
         if not skip_detection:
-            contour = find_document_contour(frame, min_area_ratio=min_area_ratio)
-            if contour is not None:
-                cv2.polylines(display, [contour], True, (0, 255, 0), 2)
+            contour = find_document_contour(
+                frame, min_area_ratio=min_area_ratio, preview=display
+            )
 
         if gesture_enabled and hands is not None:
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -307,10 +325,16 @@ def scan_document(
             frame = None
             break
 
-    cap.release()
+        if timeout is not None and time.monotonic() - wait_start > timeout:
+            frame = None
+            break
+
+    if frame is None:
+        cap.release()
+        _cached_cap = None
     cv2.destroyAllWindows()
     if frame is None:
-        return
+        return False
 
     if not skip_detection:
         contour = find_document_contour(frame, min_area_ratio=min_area_ratio)
@@ -323,12 +347,14 @@ def scan_document(
     if skip_detection:
         corrected = warped
     else:
-        corrected = correct_orientation(warped)
+        corrected = correct_orientation(warped, contour)
     if boost_contrast:
         corrected = increase_contrast(corrected)
     pdf_path = save_pdf(corrected, output_dir)
     print(f"Saved {pdf_path}")
     open_pdf(pdf_path)
+
+    return True
 
 
 def main() -> None:
@@ -364,12 +390,14 @@ def main() -> None:
     if args.test_camera:
         test_camera()
     else:
-        scan_document(
+        while scan_document(
             skip_detection=args.no_detect,
             gesture_enabled=not args.no_gesture,
             boost_contrast=not args.no_contrast,
             output_dir=args.output_dir,
-        )
+            timeout=30,
+        ):
+            pass
 
 
 if __name__ == "__main__":
