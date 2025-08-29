@@ -47,3 +47,10 @@ def test_list_cameras_uses_device_names(monkeypatch):
         (0, "Generic Cam"),
         (1, "CZUR E012A"),
     ]
+
+
+def test_select_camera_defaults_to_czur(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    monkeypatch.setattr("builtins.input", lambda: "")
+    cams = scanner.list_cameras()
+    assert scanner.select_camera(cams) == 1

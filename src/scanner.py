@@ -38,7 +38,8 @@ class CameraInfo:
         return " ".join(extras)
 
 
-CAMERA_REGEX = re.compile(r"czur\s+lens", re.IGNORECASE)
+# Match any CZUR-branded device regardless of model suffix.
+CAMERA_REGEX = re.compile(r"czur", re.IGNORECASE)
 
 
 def list_cameras(max_devices: int = 5) -> list[CameraInfo]:
