@@ -42,6 +42,25 @@ def test_find_document_contour_small_rotated():
     assert abs(h - 60) <= 5
 
 
+def test_find_document_contour_preview_draws_box():
+    import cv2
+
+    image_utils = importlib.import_module("src.image_utils")
+    importlib.reload(image_utils)
+
+    frame = np.zeros((200, 200, 3), dtype=np.uint8)
+    rect = ((100, 100), (80, 60), 0)
+    box = cv2.boxPoints(rect).astype(int)
+    cv2.drawContours(frame, [box], -1, (255, 255, 255), -1)
+
+    preview = frame.copy()
+    contour = image_utils.find_document_contour(
+        frame, min_area_ratio=0.1, preview=preview
+    )
+    assert contour is not None
+    assert np.any(np.all(preview == (0, 255, 0), axis=-1))
+
+
 def test_correct_orientation_fallback(monkeypatch):
     import cv2
 
