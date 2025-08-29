@@ -17,6 +17,7 @@ import shutil
 import cv2
 import numpy as np
 import pytesseract
+from PIL import Image
 
 # ------------------------------------------------------------
 # Windows-specific helpers
@@ -64,7 +65,7 @@ CAMERA_REGEX = re.compile(r"czur", re.IGNORECASE)
 # ------------------------------------------------------------
 # Input helper
 # ------------------------------------------------------------
-def timed_input(prompt: str, timeout: int = 2) -> str | None:
+def timed_input(prompt: str, timeout: int = 20) -> str | None:
     """Read user input with a timeout. Works on Windows and POSIX."""
     print(prompt, end="", flush=True)
 
@@ -247,7 +248,7 @@ def four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
 
 
 def correct_orientation(image: np.ndarray) -> np.ndarray:
-    """Rotate ``image`` based on Tesseract's orientation detection."""
+    """Rotate ``image`` based on Tesseract's orientation detection (90° steps)."""
     check_tesseract_installation()
     try:
         osd = pytesseract.image_to_osd(image)
@@ -255,7 +256,8 @@ def correct_orientation(image: np.ndarray) -> np.ndarray:
         angle = int(match.group(1)) if match else 0
     except Exception:
         angle = 0
-    if angle:
+
+    if angle in (90, 180, 270):
         image = rotate_bound(image, angle)
     return image
 
@@ -274,9 +276,14 @@ def rotate_bound(image: np.ndarray, angle: int) -> np.ndarray:
 
 
 def save_pdf(image: np.ndarray) -> Path:
-    """Save ``image`` with OCR text as a timestamped PDF file."""
+    """Save ``image`` with OCR text as a high-resolution PDF file."""
     check_tesseract_installation()
-    pdf_bytes = pytesseract.image_to_pdf_or_hocr(image, extension="pdf")
+
+    # Convert to PIL Image and set DPI
+    pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    pil_img.info["dpi"] = (300, 300)
+
+    pdf_bytes = pytesseract.image_to_pdf_or_hocr(pil_img, extension="pdf")
     filename = datetime.now().strftime("%Y%m%d%H%M%S") + ".pdf"
     path = Path(filename)
     path.write_bytes(pdf_bytes)
@@ -291,6 +298,11 @@ def test_camera() -> None:
     cameras = list_cameras()
     cam_index = select_camera(cameras)
     cap = cv2.VideoCapture(cam_index)
+
+    # Set high resolution
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
     cv2.namedWindow("Camera Test")
@@ -311,6 +323,11 @@ def scan_document() -> None:
     cameras = list_cameras()
     cam_index = select_camera(cameras)
     cap = cv2.VideoCapture(cam_index)
+
+    # Set high resolution
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
     cv2.namedWindow("Scanner")
