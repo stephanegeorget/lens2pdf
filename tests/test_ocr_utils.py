@@ -27,8 +27,9 @@ def test_save_pdf_uses_high_quality(monkeypatch, tmp_path):
     path = ocr.save_pdf(img)
     assert called["extension"] == "pdf"
     assert "--dpi 300" in called["config"]
-    assert "jpeg_quality=100" in called["config"]
+    assert "jpg_quality=100" in called["config"]
     assert path.exists()
+    assert (tmp_path / ocr.DEBUG_IMAGE_NAME).exists()
 
 
 def test_save_pdf_custom_directory(monkeypatch, tmp_path):
@@ -53,3 +54,4 @@ def test_save_pdf_custom_directory(monkeypatch, tmp_path):
     path = ocr.save_pdf(img, out_dir)
     assert path.parent == out_dir
     assert path.exists()
+    assert (out_dir / ocr.DEBUG_IMAGE_NAME).exists()
