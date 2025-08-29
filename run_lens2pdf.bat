@@ -20,6 +20,6 @@ if exist "%VENV_SCRIPTS%\activate.bat" (
     echo [INFO] No virtual environment found at %VENV_SCRIPTS%. Using system Python.
 )
 
-REM Launch the main application. Replace the script or add arguments as needed.
-python src\main.py %*
+REM Launch the document scanner. Replace the module or add arguments as needed.
+python -m src.scanner %*
 
