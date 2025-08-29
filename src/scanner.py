@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 import threading
@@ -152,6 +153,26 @@ def save_pdf(image: np.ndarray) -> Path:
     return path
 
 
+def test_camera() -> None:
+    """Display the camera feed without scanning to verify the window."""
+    cameras = list_cameras()
+    cam_index = select_camera(cameras)
+    cap = cv2.VideoCapture(cam_index)
+    if not cap.isOpened():
+        raise RuntimeError("Unable to open camera")
+    cv2.namedWindow("Camera Test")
+    print("Press 'q' to quit.")
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        cv2.imshow("Camera Test", frame)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
+
 def scan_document() -> None:
     """Run the interactive document scanner."""
     cameras = list_cameras()
@@ -216,5 +237,20 @@ def scan_document() -> None:
     print(f"Saved {pdf_path}")
 
 
+def main() -> None:
+    """Entry point for the scanner script."""
+    parser = argparse.ArgumentParser(description="Document scanner")
+    parser.add_argument(
+        "--test-camera",
+        action="store_true",
+        help="display camera feed without scanning",
+    )
+    args = parser.parse_args()
+    if args.test_camera:
+        test_camera()
+    else:
+        scan_document()
+
+
 if __name__ == "__main__":
-    scan_document()
+    main()

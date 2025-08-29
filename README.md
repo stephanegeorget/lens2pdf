@@ -30,3 +30,16 @@ pytest
 
 ## Customization
 Feel free to add linting, formatting, or additional libraries by editing `requirements.txt` and the VS Code configuration under `.vscode/`.
+
+## Scanner
+
+The repository includes an experimental document scanner in `src/scanner.py`.
+To verify that your camera and GUI support are working, run the script with the
+test flag:
+
+```bash
+python src/scanner.py --test-camera
+```
+
+This displays the raw camera feed. Press `q` to quit. Running the script
+without the flag starts the full scanning workflow.
