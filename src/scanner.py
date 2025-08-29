@@ -9,12 +9,40 @@ import threading
 import queue
 from datetime import datetime
 from pathlib import Path
+import shutil
 
 import cv2
 import numpy as np
 import pytesseract
 
 CAMERA_REGEX = re.compile(r"czur\s+lens", re.IGNORECASE)
+
+
+def check_tesseract_installation() -> None:
+    """Ensure that the Tesseract executable is available.
+
+    On Windows the project expects Tesseract to be installed in
+    ``C:\\pf\\Tesseract-OCR``. If the executable cannot be located,
+    a ``RuntimeError`` is raised with installation instructions.
+    """
+
+    cmd = shutil.which("tesseract")
+    if cmd:
+        return
+
+    win_path = Path("C:/pf/Tesseract-OCR/tesseract.exe")
+    if win_path.is_file():
+        if hasattr(pytesseract, "pytesseract") and hasattr(
+            pytesseract.pytesseract, "tesseract_cmd"
+        ):
+            pytesseract.pytesseract.tesseract_cmd = str(win_path)
+        return
+
+    raise RuntimeError(
+        "Tesseract OCR is required. Install it from "
+        "https://github.com/UB-Mannheim/tesseract/wiki and ensure it "
+        "is installed in C:\\pf\\Tesseract-OCR."
+    )
 
 
 def list_cameras(max_devices: int = 5) -> list[tuple[int, str]]:
@@ -163,6 +191,7 @@ def four_point_transform(image: np.ndarray, pts: np.ndarray) -> np.ndarray:
 
 def correct_orientation(image: np.ndarray) -> np.ndarray:
     """Rotate ``image`` based on Tesseract's orientation detection."""
+    check_tesseract_installation()
     osd = pytesseract.image_to_osd(image)
     match = re.search(r"Rotate: (\d+)", osd)
     angle = int(match.group(1)) if match else 0
@@ -186,6 +215,7 @@ def rotate_bound(image: np.ndarray, angle: int) -> np.ndarray:
 
 def save_pdf(image: np.ndarray) -> Path:
     """Save ``image`` with OCR text as a timestamped PDF file."""
+    check_tesseract_installation()
     pdf_bytes = pytesseract.image_to_pdf_or_hocr(image, extension="pdf")
     filename = datetime.now().strftime("%Y%m%d%H%M%S") + ".pdf"
     path = Path(filename)
