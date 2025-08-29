@@ -33,8 +33,18 @@ def check_tesseract_installation() -> None:
     )
 
 
-def save_pdf(image) -> Path:
-    """Save ``image`` with OCR text as a high-resolution PDF file."""
+def save_pdf(image, output_dir: Path | str | None = None) -> Path:
+    """Save ``image`` with OCR text as a high-resolution PDF file.
+
+    Parameters
+    ----------
+    image:
+        The image to save as a PDF.
+    output_dir:
+        Optional directory in which to write the resulting PDF file.  When not
+        provided, the current working directory is used.
+    """
+
     check_tesseract_installation()
     pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     pil_img.info["dpi"] = (300, 300)
@@ -43,7 +53,9 @@ def save_pdf(image) -> Path:
         pil_img, extension="pdf", config=config
     )
     filename = datetime.now().strftime("%Y%m%d%H%M%S") + ".pdf"
-    path = Path(filename)
+    base_dir = Path(output_dir) if output_dir else Path.cwd()
+    base_dir.mkdir(parents=True, exist_ok=True)
+    path = base_dir / filename
     path.write_bytes(pdf_bytes)
     return path
 

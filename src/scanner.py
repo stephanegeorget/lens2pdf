@@ -84,12 +84,12 @@ def check_tesseract_installation() -> None:  # pragma: no cover - thin wrapper
     return ocr_utils.check_tesseract_installation()
 
 
-def save_pdf(image: np.ndarray):  # pragma: no cover - thin wrapper
+def save_pdf(image: np.ndarray, output_dir: Path | str | None = None):  # pragma: no cover - thin wrapper
     """Proxy to ``ocr_utils.save_pdf`` using local modules."""
     ocr_utils.shutil = shutil
     ocr_utils.Path = Path
     ocr_utils.pytesseract = pytesseract
-    return ocr_utils.save_pdf(image)
+    return ocr_utils.save_pdf(image, output_dir)
 
 
 def open_pdf(path: Path) -> None:  # pragma: no cover - OS-specific side effect
@@ -152,6 +152,7 @@ def scan_document(
     skip_detection: bool = False,
     gesture_enabled: bool = True,
     boost_contrast: bool = True,
+    output_dir: Path | str | None = None,
 ) -> None:
     """Run the interactive document scanner."""
     start = time.perf_counter()
@@ -300,7 +301,7 @@ def scan_document(
         corrected = correct_orientation(warped)
     if boost_contrast:
         corrected = increase_contrast(corrected)
-    pdf_path = save_pdf(corrected)
+    pdf_path = save_pdf(corrected, output_dir)
     print(f"Saved {pdf_path}")
     open_pdf(pdf_path)
 
@@ -328,6 +329,12 @@ def main() -> None:
         action="store_true",
         help="disable 25% contrast boost",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="directory to store generated PDF files",
+    )
     args = parser.parse_args()
     if args.test_camera:
         test_camera()
@@ -336,6 +343,7 @@ def main() -> None:
             skip_detection=args.no_detect,
             gesture_enabled=not args.no_gesture,
             boost_contrast=not args.no_contrast,
+            output_dir=args.output_dir,
         )
 
 
