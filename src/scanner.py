@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -88,6 +90,19 @@ def save_pdf(image: np.ndarray):  # pragma: no cover - thin wrapper
     ocr_utils.Path = Path
     ocr_utils.pytesseract = pytesseract
     return ocr_utils.save_pdf(image)
+
+
+def open_pdf(path: Path) -> None:  # pragma: no cover - OS-specific side effect
+    """Open ``path`` using the platform's default PDF viewer."""
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(str(path))  # type: ignore[attr-defined]
+        elif sys.platform.startswith("darwin"):
+            subprocess.run(["open", str(path)], check=False)
+        else:
+            subprocess.run(["xdg-open", str(path)], check=False)
+    except Exception as exc:
+        print(f"Unable to open PDF {path}: {exc}")
 
 
 def test_camera() -> None:
@@ -287,6 +302,7 @@ def scan_document(
         corrected = increase_contrast(corrected)
     pdf_path = save_pdf(corrected)
     print(f"Saved {pdf_path}")
+    open_pdf(pdf_path)
 
 
 def main() -> None:
