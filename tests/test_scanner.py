@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 import importlib
 import sys
+from pathlib import Path
 import pytest
 
 
@@ -115,4 +116,32 @@ def test_no_gesture_flag(monkeypatch):
     scanner.main()
 
     assert called["args"] == (False, False)
+
+
+def test_open_pdf_linux(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    opened = {}
+
+    def fake_run(cmd, check):
+        opened["cmd"] = cmd
+
+    monkeypatch.setattr(scanner.subprocess, "run", fake_run)
+    monkeypatch.setattr(scanner.sys, "platform", "linux")
+    scanner.open_pdf(Path("doc.pdf"))
+
+    assert opened["cmd"] == ["xdg-open", "doc.pdf"]
+
+
+def test_open_pdf_windows(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    opened = {}
+
+    def fake_startfile(path):
+        opened["path"] = path
+
+    monkeypatch.setattr(scanner.os, "startfile", fake_startfile, raising=False)
+    monkeypatch.setattr(scanner.sys, "platform", "win32")
+    scanner.open_pdf(Path("doc.pdf"))
+
+    assert opened["path"] == "doc.pdf"
 
