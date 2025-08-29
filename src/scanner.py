@@ -22,6 +22,7 @@ from .image_utils import (
     find_document_contour,
     four_point_transform,
     increase_contrast,
+    reduce_jpeg_artifacts,
 )
 from . import ocr_utils
 
@@ -350,6 +351,8 @@ def scan_document(
         corrected = correct_orientation(warped)
     if boost_contrast:
         corrected = increase_contrast(corrected)
+    # Lightly denoise the frame to reduce visible JPEG artifacts before saving
+    corrected = reduce_jpeg_artifacts(corrected)
     pdf_path = save_pdf(corrected, output_dir)
     print(f"Saved {pdf_path}")
     open_pdf(pdf_path)

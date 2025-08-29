@@ -131,6 +131,20 @@ def increase_contrast(image: np.ndarray, factor: float = 1.25) -> np.ndarray:
     return cv2.convertScaleAbs(image, alpha=factor, beta=0)
 
 
+def reduce_jpeg_artifacts(image: np.ndarray) -> np.ndarray:
+    """Denoise ``image`` to lessen visible JPEG compression artifacts.
+
+    The scanner captures frames from a webcam which commonly delivers JPEG
+    compressed images.  Re-encoding those images can exaggerate blocking and
+    ringing artifacts.  OpenCV's ``fastNlMeansDenoisingColored`` performs a
+    non-local means filter that smooths out compression noise while preserving
+    edges, providing a cleaner source for downstream OCR and PDF generation.
+    """
+
+    # Parameters are tuned for a good balance between smoothing and detail.
+    return cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
+
+
 __all__ = [
     "find_document_contour",
     "order_points",
@@ -138,4 +152,5 @@ __all__ = [
     "rotate_bound",
     "correct_orientation",
     "increase_contrast",
+    "reduce_jpeg_artifacts",
 ]
