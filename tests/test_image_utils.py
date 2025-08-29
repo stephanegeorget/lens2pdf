@@ -20,6 +20,25 @@ def test_increase_contrast(monkeypatch):
     assert np.array_equal(result, expected)
 
 
+def test_reduce_jpeg_artifacts(monkeypatch):
+    called = {}
+
+    def fake_denoise(img, _dst, h, hColor, template, search):
+        called["args"] = (h, hColor, template, search)
+        return img
+
+    fake_cv2 = types.SimpleNamespace(fastNlMeansDenoisingColored=fake_denoise)
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+
+    image_utils = importlib.import_module("src.image_utils")
+    importlib.reload(image_utils)
+
+    img = np.zeros((10, 10, 3), dtype=np.uint8)
+    result = image_utils.reduce_jpeg_artifacts(img)
+    assert result is img
+    assert called["args"] == (10, 10, 7, 21)
+
+
 def test_find_document_contour_small_rotated():
     import cv2
 
