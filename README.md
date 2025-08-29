@@ -1,84 +1,85 @@
-# Cozy Python Starter
+# lens2pdf
 
-A minimal template for writing Python code using Visual Studio Code on a Windows machine.
+lens2pdf turns any webcam into a document scanner. Point the camera at a page and show a **V sign** with your hand to capture the image. The app detects the document edges, corrects perspective and orientation, enhances contrast, performs OCR with Tesseract and saves a searchable PDF.
 
 ## Features
-- Pre-configured VS Code settings that point to a `.venv` interpreter.
-- Windows batch launcher `run_lens2pdf.bat` to start the document scanner.
-- Basic `pytest` unit test in `tests/`.
+- **Gesture triggered scans** – hold up a V (peace) sign to start a 3‑2‑1 countdown and capture a page. You can also press `s` on the keyboard.
+- **Automatic document detection** – locates paper within the frame and performs a perspective transform to flatten it.
+- **Orientation and OCR** – uses [Tesseract](https://github.com/tesseract-ocr/tesseract) to rotate pages upright and embed recognized text for searching.
+- **Contrast boost** – improves legibility of lighter documents.
+- **Opens the PDF automatically** – each capture is written to a timestamped PDF and opened with the system viewer.
 
-## Prerequisites
-These steps walk through everything that must be installed **before** running the
-project. They assume a fresh Windows machine, but pointers for macOS and Linux
-are included.
+## Requirements
+### Software
+- A webcam.
+- [Python](https://www.python.org/downloads/) **3.12 or newer**.
+- [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki). On first run the program checks for the `tesseract` executable and shows an error if it is missing.
+- On Linux you may also need system packages such as `libgl1` for OpenCV.
+
+### Python packages
+The project relies on the packages listed in `requirements.txt`:
+
+```
+opencv-python
+numpy
+mediapipe
+pytesseract
+Pillow
+pytest  # tests only
+```
+
+These will be installed in the installation step below.
+
+## Installation
+The steps below assume no prior Python knowledge.
 
 1. **Install Python**
-   * Download Python 3.12 or newer from
-     [python.org](https://www.python.org/downloads/).
-   * During installation on Windows, check **Add Python to PATH**.
-   * Confirm the installation by running `python --version` in a terminal.
+   - Download Python from [python.org](https://www.python.org/downloads/).
+   - **Windows**: during setup check *Add Python to PATH*. After installation open *Command Prompt* and run `python --version` to verify.
 
-2. **Install Tesseract OCR** (must be installed before the Python dependencies)
-   * Windows:
-     * Download the [UB Mannheim build](https://github.com/UB-Mannheim/tesseract/wiki).
-     * When prompted for an installation directory, choose `C:\pf\Tesseract-OCR` so
-       the executable is placed at `C:\pf\Tesseract-OCR\tesseract.exe`.
-   * macOS: `brew install tesseract`
-   * Ubuntu/Debian: `sudo apt install tesseract-ocr`
-   * Verify with `tesseract --version`.
+2. **Install Tesseract OCR**
+   - **Windows**: use the [UB Mannheim installer](https://github.com/UB-Mannheim/tesseract/wiki) and accept the default path `C:\\pf\\Tesseract-OCR`.
+   - **macOS**: `brew install tesseract`.
+   - **Ubuntu/Debian**: `sudo apt install tesseract-ocr`.
+   - Confirm with `tesseract --version` in a terminal.
 
-3. **Install Git and Visual Studio Code**
-   * Git is required to clone the repository. It can be downloaded from
-     [git-scm.com](https://git-scm.com/downloads).
-   * Visual Studio Code is available from
-     [code.visualstudio.com](https://code.visualstudio.com/Download).
+3. **Get the lens2pdf code**
+   - EITHER click the **Code ▾** button on GitHub and download the ZIP, then unzip it.
+   - OR install [Git](https://git-scm.com/downloads) and run:
+     ```
+     git clone <repository-url>
+     cd lens2pdf
+     ```
 
-## Getting Started
-Once the prerequisites above are satisfied, set up the project:
+4. **Create a virtual environment** (isolated place to install Python packages)
+   - **Windows**:
+     ```
+     python -m venv .venv
+     .\venv\Scripts\activate
+     ```
+   - **macOS/Linux**:
+     ```
+     python3 -m venv .venv
+     source .venv/bin/activate
+     ```
 
-1. **Clone this repository**:
-
-   ```powershell
-   git clone <repository-url>
-   cd lens2pdf
+5. **Install the Python dependencies**
    ```
-
-2. **Create and activate a virtual environment**:
-
-   ```powershell
-   py -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
-
-3. **Install the Python dependencies** listed in `requirements.txt`:
-
-   ```powershell
+   pip install --upgrade pip
    pip install -r requirements.txt
    ```
 
-4. **Open the folder in VS Code**. The editor will automatically pick up the
-   interpreter from `.venv`.
-5. Use **Run > Start Debugging** or press `F5` to execute `src/scanner.py`. Run
-   tests with **Terminal > Run Task > pytest** or `pytest` in the terminal.
+## Running
+- Start the scanner:
+  - **Windows**: double‑click `run_lens2pdf.bat` or run `python src/scanner.py` from an activated virtual environment.
+  - **macOS/Linux**: run `python src/scanner.py` from an activated virtual environment.
+- Optional camera test: `python src/scanner.py --test-camera`.
+- Position your document in view. When ready, show a **V sign** (or press `s`). The app captures the page, saves a PDF in the current directory and opens it. Press `q` to quit.
 
-## Running Tests
-After the virtual environment is active:
-
-```powershell
-pytest
+## Running tests
+After activating the virtual environment you can run:
 ```
-
-## Customization
-Feel free to add linting, formatting, or additional libraries by editing `requirements.txt` and the VS Code configuration under `.vscode/`.
-
-## Scanner
-
-The repository includes an experimental document scanner in `src/scanner.py`.
-To verify that your camera and GUI support are working, run the script with the
-test flag:
-
-```bash
-python src/scanner.py --test-camera
+pytest
 ```
 
 This displays the raw camera feed. Press `q` to quit. Running the script
