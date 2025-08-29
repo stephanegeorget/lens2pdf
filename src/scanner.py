@@ -7,6 +7,7 @@ import re
 import sys
 import threading
 import queue
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -14,30 +15,125 @@ import cv2
 import numpy as np
 import pytesseract
 
+
+@dataclass
+class CameraInfo:
+    """Debug information about a discovered camera device."""
+
+    index: int
+    name: str
+    backend: str | None = None
+    description: str | None = None
+    hw_address: str | None = None
+
+    def summary(self) -> str:
+        """Return a human readable summary of the camera."""
+        extras: list[str] = []
+        if self.backend:
+            extras.append(f"backend={self.backend}")
+        if self.hw_address:
+            extras.append(f"hw={self.hw_address}")
+        if self.description and self.description != self.name:
+            extras.append(f"desc={self.description}")
+        return " ".join(extras)
+
+
 CAMERA_REGEX = re.compile(r"czur\s+lens", re.IGNORECASE)
 
 
-def list_cameras(max_devices: int = 5) -> list[tuple[int, str]]:
-    """Return a list of available camera indices and names."""
-    cameras: list[tuple[int, str]] = []
+def list_cameras(max_devices: int = 5) -> list[CameraInfo]:
+    """Return a list of available camera indices and debug information."""
+
+    print(f"Python: {sys.version.split()[0]} ({sys.platform})")
+    print(f"OpenCV version: {getattr(cv2, '__version__', 'unknown')}")
+    cameras: list[CameraInfo] = []
+
+    # Newer OpenCV versions expose rich camera information via the
+    # ``videoio_registry`` module.  This provides the human readable name of
+    # the device which allows us to match against ``CAMERA_REGEX`` below.  If
+    # this API is available we use it exclusively.
+    try:  # pragma: no cover - registry functions are best effort
+        registry = getattr(cv2, "videoio_registry", None)
+        if registry is not None:
+            # List available backends for additional debug context
+            try:
+                backends = getattr(registry, "getBackends", lambda: [])()
+                if backends and hasattr(registry, "getBackendName"):
+                    names = [registry.getBackendName(b) for b in backends]
+                    print("Video backends:", ", ".join(map(str, names)))
+            except Exception:
+                pass
+
+            if hasattr(registry, "getCameraInfoList"):
+                infos = registry.getCameraInfoList()  # type: ignore[attr-defined]
+                print("videoio_registry camera info:")
+                for info in infos:
+                    attrs = {k: getattr(info, k) for k in dir(info) if not k.startswith("_")}
+                    print("  ", attrs)
+                    idx = attrs.get("id", attrs.get("index"))
+                    name = attrs.get("name") or f"Camera {idx}"
+                    backend = attrs.get("backend") or attrs.get("api")
+                    hw = attrs.get("devicePath") or attrs.get("path")
+                    cameras.append(
+                        CameraInfo(
+                            index=int(idx),
+                            name=str(name),
+                            backend=str(backend) if backend else None,
+                            description=str(name),
+                            hw_address=str(hw) if hw else None,
+                        )
+                    )
+                if cameras:
+                    return cameras
+    except Exception:
+        pass
+
+    print("Falling back to probing camera indices...")
+    # Fallback: attempt to open the first ``max_devices`` indices and query a
+    # descriptive name via ``CAP_PROP_DEVICE_DESCRIPTION`` if supported.
     for index in range(max_devices):
         cap = cv2.VideoCapture(index)
         if cap.isOpened():
             name = f"Camera {index}"
+            desc = None
+            hw = None
             if hasattr(cv2, "CAP_PROP_DEVICE_DESCRIPTION"):
                 try:
-                    # Some platforms expose the device name via this property
-                    prop = cap.get(cv2.CAP_PROP_DEVICE_DESCRIPTION)
-                    if isinstance(prop, str) and prop:
-                        name = prop
+                    d = cap.get(cv2.CAP_PROP_DEVICE_DESCRIPTION)  # type: ignore[attr-defined]
+                    if isinstance(d, str) and d:
+                        name = d
+                        desc = d
                 except Exception:  # pragma: no cover - best effort
                     pass
-            cameras.append((index, name))
+            if hasattr(cv2, "CAP_PROP_HW_ADDRESS"):
+                try:
+                    addr = cap.get(cv2.CAP_PROP_HW_ADDRESS)  # type: ignore[attr-defined]
+                    if isinstance(addr, str) and addr:
+                        hw = addr
+                except Exception:  # pragma: no cover - best effort
+                    pass
+            backend = None
+            try:
+                backend = cap.getBackendName()  # type: ignore[attr-defined]
+            except Exception:  # pragma: no cover - best effort
+                pass
+            cameras.append(
+                CameraInfo(
+                    index=index,
+                    name=name,
+                    backend=str(backend) if backend else None,
+                    description=desc,
+                    hw_address=hw,
+                )
+            )
+            print(
+                f"  index {index}: name={name} backend={backend} hw={hw}"
+            )
         cap.release()
     return cameras
 
 
-def select_camera(cameras: list[tuple[int, str]]) -> int:
+def select_camera(cameras: list[CameraInfo]) -> int:
     """Select a camera from ``cameras``.
 
     If a camera name matches ``CAMERA_REGEX`` it is selected by default.
@@ -46,16 +142,18 @@ def select_camera(cameras: list[tuple[int, str]]) -> int:
     if not cameras:
         raise RuntimeError("No cameras found")
 
-    default = cameras[0][0]
-    for idx, name in cameras:
-        if CAMERA_REGEX.search(name):
-            default = idx
+    default = cameras[0].index
+    for cam in cameras:
+        if CAMERA_REGEX.search(cam.name):
+            default = cam.index
             break
 
     print("Available cameras:")
-    for idx, name in cameras:
-        label = "(default)" if idx == default else ""
-        print(f"[{idx}] {name} {label}")
+    for cam in cameras:
+        label = "(default)" if cam.index == default else ""
+        extras = cam.summary()
+        extra_str = f" {extras}" if extras else ""
+        print(f"[{cam.index}] {cam.name} {label}{extra_str}")
     print("Press Enter within 2 seconds to select another camera index.")
 
     q: queue.Queue[str] = queue.Queue()
