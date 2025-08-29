@@ -192,6 +192,28 @@ def test_output_dir_flag(monkeypatch, tmp_path):
     assert called["args"] == (False, True, True, str(tmp_path), 0.1)
 
 
+def test_default_timeout(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    called = {}
+
+    def fake_scan(
+        *,
+        skip_detection,
+        gesture_enabled,
+        boost_contrast,
+        output_dir,
+        timeout=None,
+        min_area_ratio=0.1,
+    ):
+        called["timeout"] = timeout
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner"])
+    scanner.main()
+
+    assert called["timeout"] == 60
+
+
 def test_is_v_sign_sideways(monkeypatch):
     """The V gesture should be detected even when rotated 90 degrees."""
     scanner = setup_fake_cv2(monkeypatch)
