@@ -163,7 +163,10 @@ def list_cameras(max_devices: int = 5) -> list[CameraInfo]:
     # Probe indices
     print("Probing camera indices...")
     for index in range(max_devices):
-        cap = cv2.VideoCapture(index)
+        if sys.platform == "win32" and hasattr(cv2, "CAP_DSHOW"):
+            cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+        else:
+            cap = cv2.VideoCapture(index)
         if cap.isOpened():
             name = f"Camera {index}"
             if sys.platform == "win32" and index < len(win_names):
@@ -181,6 +184,11 @@ def list_cameras(max_devices: int = 5) -> list[CameraInfo]:
                 )
             )
             print(f"  index {index}: name={name} backend={backend}")
+        else:
+            # Camera indices are typically contiguous; stop after the first
+            # missing index to avoid long timeouts when probing.
+            cap.release()
+            break
         cap.release()
     return cameras
 
