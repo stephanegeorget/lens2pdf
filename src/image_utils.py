@@ -128,7 +128,9 @@ def detect_dominant_edge_angle(image: np.ndarray) -> float:
     angle = 0.0
     if lines is not None:
         rho, theta = lines[0][0]
-        angle = np.degrees(theta) - 90
+        angle = np.degrees(theta)
+        if angle > 90:
+            angle -= 180
     else:
         lines_p = cv2.HoughLinesP(
             edges, 1, np.pi / 180, threshold=100, minLineLength=20, maxLineGap=10
@@ -139,8 +141,10 @@ def detect_dominant_edge_angle(image: np.ndarray) -> float:
                 key=lambda l: np.hypot(l[0][2] - l[0][0], l[0][3] - l[0][1]),
             )[0]
             angle = np.degrees(np.arctan2(y2 - y1, x2 - x1)) - 90
-    # Normalize to [-90, 90)
-    angle = (angle + 90) % 180 - 90
+            if angle > 90:
+                angle -= 180
+            elif angle <= -90:
+                angle += 180
     return angle
 
 
