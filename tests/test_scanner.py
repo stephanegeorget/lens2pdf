@@ -102,3 +102,17 @@ def test_check_tesseract_configures_path(monkeypatch):
         == "C:/pf/Tesseract-OCR/tesseract.exe"
     )
 
+
+def test_no_gesture_flag(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    called = {}
+
+    def fake_scan(*, skip_detection, gesture_enabled):
+        called["args"] = (skip_detection, gesture_enabled)
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner", "--no-gesture"])
+    scanner.main()
+
+    assert called["args"] == (False, False)
+
