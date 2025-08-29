@@ -96,6 +96,29 @@ def _is_v_sign(hand) -> bool:
     return True
 
 
+def _stack_frames(
+    cap: cv2.VideoCapture, base: np.ndarray, count: int
+) -> np.ndarray:
+    """Return the average of ``count`` frames from ``cap``.
+
+    The first frame to include in the average is provided via ``base``; the
+    function then grabs ``count - 1`` additional frames from ``cap`` and
+    computes their arithmetic mean.  This simple stacking technique reduces
+    noise and can recover detail when the document being scanned is stationary.
+    """
+
+    acc = base.astype(np.float32)
+    frames = 1
+    for _ in range(count - 1):
+        ret, frame = cap.read()
+        if not ret:
+            break
+        acc += frame.astype(np.float32)
+        frames += 1
+    acc /= frames
+    return np.clip(acc, 0, 255).astype(np.uint8)
+
+
 def check_tesseract_installation() -> None:  # pragma: no cover - thin wrapper
     """Proxy to ``ocr_utils.check_tesseract_installation`` using local modules."""
     ocr_utils.shutil = shutil
@@ -174,6 +197,7 @@ def scan_document(
     boost_contrast: bool = True,
     output_dir: Path | str | None = None,
     timeout: float | None = None,
+    stack_count: int = 10,
     *,
     min_area_ratio: float = 0.1,
 ) -> bool:
@@ -184,6 +208,10 @@ def scan_document(
     timeout:
         Maximum number of seconds to wait for a scan request before exiting.
         ``None`` disables the timeout.
+    stack_count:
+        Number of frames to average together for a single scan.  Using multiple
+        frames can reduce noise and slightly improve effective resolution when
+        the document is stationary.
     min_area_ratio:
         Forwarded to :func:`src.image_utils.find_document_contour` to control the
         minimum size of detectable documents.
@@ -328,6 +356,9 @@ def scan_document(
         if timeout is not None and time.monotonic() - wait_start > timeout:
             frame = None
             break
+
+    if frame is not None and stack_count > 1:
+        frame = _stack_frames(cap, frame, stack_count)
 
     if frame is None:
         cap.release()

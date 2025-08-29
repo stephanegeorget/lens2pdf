@@ -82,7 +82,9 @@ python src/scanner.py --test-camera
 ```
 
 This displays the raw camera feed. Press `q` to quit. Running the script
-without the flag starts the full scanning workflow.
+without the flag starts the full scanning workflow. For each scan the camera
+captures multiple frames (10 by default) and averages them to reduce noise and
+recover finer detail when the document remains still.
 
 ### Tesseract OCR
 
