@@ -4,7 +4,7 @@ A minimal template for writing Python code using Visual Studio Code on a Windows
 
 ## Features
 - Pre-configured VS Code settings that point to a `.venv` interpreter.
-- Example `src/main.py` module with a simple greeting function.
+- Windows batch launcher `run_lens2pdf.bat` to start the document scanner.
 - Basic `pytest` unit test in `tests/`.
 
 ## Prerequisites
@@ -58,7 +58,7 @@ Once the prerequisites above are satisfied, set up the project:
 
 4. **Open the folder in VS Code**. The editor will automatically pick up the
    interpreter from `.venv`.
-5. Use **Run > Start Debugging** or press `F5` to execute `src/main.py`. Run
+5. Use **Run > Start Debugging** or press `F5` to execute `src/scanner.py`. Run
    tests with **Terminal > Run Task > pytest** or `pytest` in the terminal.
 
 ## Running Tests
