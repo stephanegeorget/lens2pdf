@@ -12,6 +12,8 @@ from PIL import Image
 
 from types import SimpleNamespace
 
+DEBUG_IMAGE_NAME = "tesseract_debug_input.png"
+
 
 def check_tesseract_installation() -> None:
     """Ensure that the Tesseract executable is available."""
@@ -48,16 +50,18 @@ def save_pdf(image, output_dir: Path | str | None = None) -> Path:
     check_tesseract_installation()
     pil_img = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     pil_img.info["dpi"] = (300, 300)
-    config = "--dpi 300 -c jpeg_quality=100"
+    base_dir = Path(output_dir) if output_dir else Path.cwd()
+    base_dir.mkdir(parents=True, exist_ok=True)
+    pil_img.save(base_dir / DEBUG_IMAGE_NAME)
+    # Use lossless PNG to avoid JPEG artifacts in the generated PDF
+    config = "--dpi 300 -c pdf_image_format=png"
     pdf_bytes = pytesseract.image_to_pdf_or_hocr(
         pil_img, extension="pdf", config=config
     )
     filename = datetime.now().strftime("%Y%m%d%H%M%S") + ".pdf"
-    base_dir = Path(output_dir) if output_dir else Path.cwd()
-    base_dir.mkdir(parents=True, exist_ok=True)
     path = base_dir / filename
     path.write_bytes(pdf_bytes)
     return path
 
 
-__all__ = ["check_tesseract_installation", "save_pdf"]
+__all__ = ["check_tesseract_installation", "save_pdf", "DEBUG_IMAGE_NAME"]
