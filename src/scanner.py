@@ -7,6 +7,7 @@ import re
 import sys
 import threading
 import queue
+import select
 from datetime import datetime
 from pathlib import Path
 
@@ -76,20 +77,14 @@ def select_camera(cameras: list[tuple[int, str]]) -> int:
         label = "(default)" if idx == default else ""
         print(f"[{idx}] {name} {label}")
     print("Press Enter within 2 seconds to select another camera index.")
-
-    q: queue.Queue[str] = queue.Queue()
-
-    def reader() -> None:
-        q.put(input())
-
-    t = threading.Thread(target=reader)
-    t.daemon = True
-    t.start()
+    print("> ", end="", flush=True)
     try:
-        choice = q.get(timeout=2).strip()
-        if choice.isdigit():
-            return int(choice)
-    except queue.Empty:
+        ready, _, _ = select.select([sys.stdin], [], [], 2)
+        if ready:
+            choice = sys.stdin.readline().strip()
+            if choice.isdigit():
+                return int(choice)
+    except Exception:  # pragma: no cover - best effort
         pass
     return default
 
