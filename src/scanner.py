@@ -169,8 +169,17 @@ def scan_document(
     gesture_enabled: bool = True,
     boost_contrast: bool = True,
     output_dir: Path | str | None = None,
+    *,
+    min_area_ratio: float = 0.1,
 ) -> None:
-    """Run the interactive document scanner."""
+    """Run the interactive document scanner.
+
+    Parameters
+    ----------
+    min_area_ratio:
+        Forwarded to :func:`src.image_utils.find_document_contour` to control the
+        minimum size of detectable documents.
+    """
     start = time.perf_counter()
     print("[DEBUG] Starting scan_document")
     cameras = list_cameras()
@@ -227,7 +236,7 @@ def scan_document(
             first_frame = False
         display = frame.copy()
         if not skip_detection:
-            contour = find_document_contour(frame)
+            contour = find_document_contour(frame, min_area_ratio=min_area_ratio)
             if contour is not None:
                 cv2.polylines(display, [contour], True, (0, 255, 0), 2)
 
@@ -304,7 +313,7 @@ def scan_document(
         return
 
     if not skip_detection:
-        contour = find_document_contour(frame)
+        contour = find_document_contour(frame, min_area_ratio=min_area_ratio)
     else:
         contour = None
     if contour is not None and not skip_detection:
