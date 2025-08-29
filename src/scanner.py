@@ -18,7 +18,7 @@ import numpy as np
 import pytesseract
 
 
-@dataclass
+@dataclass(eq=False)
 class CameraInfo:
     """Debug information about a discovered camera device."""
 
@@ -38,6 +38,19 @@ class CameraInfo:
         if self.description and self.description != self.name:
             extras.append(f"desc={self.description}")
         return " ".join(extras)
+
+    def __eq__(self, other: object) -> bool:  # pragma: no cover - trivial
+        if isinstance(other, CameraInfo):
+            return (
+                self.index == other.index
+                and self.name == other.name
+                and self.backend == other.backend
+                and self.description == other.description
+                and self.hw_address == other.hw_address
+            )
+        if isinstance(other, tuple) and len(other) >= 2:
+            return self.index == other[0] and self.name == other[1]
+        return False
 
 
 # Match any CZUR-branded device regardless of model suffix.
@@ -92,6 +105,66 @@ def list_cameras(max_devices: int = 5) -> list[CameraInfo]:
         pass
 
     print("Falling back to probing camera indices...")
+
+    def _info_from_capture(cap: cv2.VideoCapture, index: int, default_name: str) -> CameraInfo:
+        """Extract ``CameraInfo`` from an opened ``VideoCapture``."""
+
+        name = default_name
+        desc = None
+        hw = None
+        if hasattr(cv2, "CAP_PROP_DEVICE_DESCRIPTION"):
+            try:
+                d = cap.get(cv2.CAP_PROP_DEVICE_DESCRIPTION)  # type: ignore[attr-defined]
+                if isinstance(d, str) and d:
+                    name = d
+                    desc = d
+            except Exception:  # pragma: no cover - best effort
+                pass
+        if hasattr(cv2, "CAP_PROP_HW_ADDRESS"):
+            try:
+                addr = cap.get(cv2.CAP_PROP_HW_ADDRESS)  # type: ignore[attr-defined]
+                if isinstance(addr, str) and addr:
+                    hw = addr
+            except Exception:  # pragma: no cover - best effort
+                pass
+        backend = None
+        try:
+            backend = cap.getBackendName()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - best effort
+            pass
+        return CameraInfo(
+            index=index,
+            name=name,
+            backend=str(backend) if backend else None,
+            description=desc,
+            hw_address=hw,
+        )
+
+    for index in range(max_devices):
+        cap = cv2.VideoCapture(index)
+        if not cap.isOpened():
+            cap.release()
+            continue
+        info = _info_from_capture(cap, index, f"Camera {index}")
+        cap.release()
+
+        if info.name == f"Camera {index}":
+            dshow = getattr(cv2, "CAP_DSHOW", None)
+            if dshow is not None:
+                cap2 = cv2.VideoCapture(index, dshow)
+                if cap2.isOpened():
+                    info2 = _info_from_capture(cap2, index, info.name)
+                    cap2.release()
+                    if info2.name != f"Camera {index}":
+                        info = info2
+        cameras.append(info)
+        print(
+            f"  index {info.index}: name={info.name} backend={info.backend} hw={info.hw_address}"
+        )
+
+    return cameras
+
+
 def check_tesseract_installation() -> None:
     """Ensure that the Tesseract executable is available.
 
@@ -106,10 +179,11 @@ def check_tesseract_installation() -> None:
 
     win_path = Path("C:/pf/Tesseract-OCR/tesseract.exe")
     if win_path.is_file():
-        if hasattr(pytesseract, "pytesseract") and hasattr(
-            pytesseract.pytesseract, "tesseract_cmd"
-        ):
-            pytesseract.pytesseract.tesseract_cmd = str(win_path)
+        if not hasattr(pytesseract, "pytesseract"):
+            from types import SimpleNamespace
+
+            pytesseract.pytesseract = SimpleNamespace()
+        pytesseract.pytesseract.tesseract_cmd = str(win_path)
         return
 
     raise RuntimeError(
@@ -117,72 +191,6 @@ def check_tesseract_installation() -> None:
         "https://github.com/UB-Mannheim/tesseract/wiki and ensure it "
         "is installed in C:\\pf\\Tesseract-OCR."
     )
-
-
-def list_cameras(max_devices: int = 5) -> list[tuple[int, str]]:
-    """Return a list of available camera indices and names."""
-    cameras: list[tuple[int, str]] = []
-
-    # Newer OpenCV versions expose rich camera information via the
-    # ``videoio_registry`` module.  This provides the human readable name of
-    # the device which allows us to match against ``CAMERA_REGEX`` below.  If
-    # this API is available we use it exclusively.
-    try:  # pragma: no cover - registry functions are best effort
-        registry = getattr(cv2, "videoio_registry", None)
-        if registry is not None and hasattr(registry, "getCameraInfoList"):
-            infos = registry.getCameraInfoList()  # type: ignore[attr-defined]
-            for info in infos:
-                idx = getattr(info, "id", getattr(info, "index", None))
-                name = getattr(info, "name", "") or f"Camera {idx}"
-                cameras.append((int(idx), str(name)))
-            if cameras:
-                return cameras
-    except Exception:
-        pass
-
-    # Fallback: attempt to open the first ``max_devices`` indices and query a
-    # descriptive name via ``CAP_PROP_DEVICE_DESCRIPTION`` if supported.
-    for index in range(max_devices):
-        cap = cv2.VideoCapture(index)
-        if cap.isOpened():
-            name = f"Camera {index}"
-            desc = None
-            hw = None
-            if hasattr(cv2, "CAP_PROP_DEVICE_DESCRIPTION"):
-                try:
-
-                    d = cap.get(cv2.CAP_PROP_DEVICE_DESCRIPTION)  # type: ignore[attr-defined]
-                    if isinstance(d, str) and d:
-                        name = d
-                        desc = d
-                except Exception:  # pragma: no cover - best effort
-                    pass
-            if hasattr(cv2, "CAP_PROP_HW_ADDRESS"):
-                try:
-                    addr = cap.get(cv2.CAP_PROP_HW_ADDRESS)  # type: ignore[attr-defined]
-                    if isinstance(addr, str) and addr:
-                        hw = addr
-                except Exception:  # pragma: no cover - best effort
-                    pass
-            backend = None
-            try:
-                backend = cap.getBackendName()  # type: ignore[attr-defined]
-            except Exception:  # pragma: no cover - best effort
-                pass
-            cameras.append(
-                CameraInfo(
-                    index=index,
-                    name=name,
-                    backend=str(backend) if backend else None,
-                    description=desc,
-                    hw_address=hw,
-                )
-            )
-            print(
-                f"  index {index}: name={name} backend={backend} hw={hw}"
-            )
-        cap.release()
-    return cameras
 
 
 def select_camera(cameras: list[CameraInfo]) -> int:
