@@ -76,17 +76,38 @@ def select_camera(cameras: list[tuple[int, str]]) -> int:
 
 
 def find_document_contour(frame: np.ndarray) -> np.ndarray | None:
-    """Locate a rectangular contour in ``frame``."""
+    """Locate a rectangular contour in ``frame``.
+
+    The parameters are tuned for large documents that almost fill the
+    camera view.  When no suitable contour is found, the function
+    returns the image bounds if the largest contour nearly covers the
+    entire frame.
+    """
+
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edged = cv2.Canny(blurred, 75, 200)
-    contours, _ = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    contours = sorted(contours, key=cv2.contourArea, reverse=True)[:5]
+    # Lower Canny thresholds to better pick up faint edges at the image
+    # border when the document occupies most of the frame.
+    edged = cv2.Canny(blurred, 50, 150)
+    contours, _ = cv2.findContours(
+        edged.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    height, width = frame.shape[:2]
+    frame_area = width * height
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
     for c in contours:
         peri = cv2.arcLength(c, True)
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-        if len(approx) == 4:
+        area = cv2.contourArea(c)
+        if len(approx) == 4 and area > 0.5 * frame_area:
             return approx
+    if contours:
+        area = cv2.contourArea(contours[0])
+        if area > 0.9 * frame_area:
+            return np.array(
+                [[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]],
+                dtype=np.float32,
+            )
     return None
 
 
@@ -228,10 +249,11 @@ def scan_document() -> None:
     if frame is None:
         return
     contour = find_document_contour(frame)
-    if contour is None:
-        print("No document detected.")
-        return
-    warped = four_point_transform(frame, contour)
+    if contour is not None:
+        warped = four_point_transform(frame, contour)
+    else:
+        print("No document detected; using full frame.")
+        warped = frame
     corrected = correct_orientation(warped)
     pdf_path = save_pdf(corrected)
     print(f"Saved {pdf_path}")
