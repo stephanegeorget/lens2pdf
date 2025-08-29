@@ -212,7 +212,7 @@ def select_camera(cameras: list[CameraInfo]) -> int:
         print(f"[{cam.index}] {cam.name} {label}{extra_str}")
 
     choice = timed_input(
-        f"Enter camera index within 20 seconds (default={default}): ", timeout=20
+        f"Enter camera index within 2 seconds (default={default}): ", timeout=2
     )
     if choice and choice.isdigit():
         return int(choice)
