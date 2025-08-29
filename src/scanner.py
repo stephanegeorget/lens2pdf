@@ -6,6 +6,7 @@ import argparse
 import queue
 import sys
 import threading
+import time
 
 import cv2
 import numpy as np
@@ -28,6 +29,13 @@ Image = ocr_utils.Image
 
 # Scale factor for preview windows (e.g. 0.5 = half size)
 PREVIEW_SCALE = 0.5
+
+
+def _debug_time(start: float, label: str) -> float:
+    """Print a debug message showing elapsed time since ``start``."""
+    now = time.perf_counter()
+    print(f"[DEBUG] {label}: {now - start:.2f}s")
+    return now
 
 
 def _is_v_sign(hand) -> bool:
@@ -71,19 +79,31 @@ def save_pdf(image: np.ndarray):  # pragma: no cover - thin wrapper
 
 def test_camera() -> None:
     """Display the camera feed without scanning to verify the window."""
+    start = time.perf_counter()
+    print("[DEBUG] Starting test_camera")
     cameras = list_cameras()
+    _debug_time(start, "after list_cameras")
     cam_index = select_camera(cameras)
+    _debug_time(start, "after select_camera")
     cap = cv2.VideoCapture(cam_index)
+    _debug_time(start, "after VideoCapture")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    _debug_time(start, "after setting resolution")
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
+    _debug_time(start, "after cap.isOpened")
     cv2.namedWindow("Camera Test")
+    _debug_time(start, "after namedWindow")
     print("Press 'q' to quit.")
+    first_frame = True
     while True:
         ret, frame = cap.read()
         if not ret:
             break
+        if first_frame:
+            _debug_time(start, "after first frame")
+            first_frame = False
         preview = frame
         if PREVIEW_SCALE != 1.0:
             preview = cv2.resize(
@@ -102,14 +122,22 @@ def test_camera() -> None:
 
 def scan_document(skip_detection: bool = False, gesture_enabled: bool = True) -> None:
     """Run the interactive document scanner."""
+    start = time.perf_counter()
+    print("[DEBUG] Starting scan_document")
     cameras = list_cameras()
+    _debug_time(start, "after list_cameras")
     cam_index = select_camera(cameras)
+    _debug_time(start, "after select_camera")
     cap = cv2.VideoCapture(cam_index)
+    _debug_time(start, "after VideoCapture")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    _debug_time(start, "after setting resolution")
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
+    _debug_time(start, "after cap.isOpened")
     cv2.namedWindow("Scanner")
+    _debug_time(start, "after namedWindow")
     print("Press 's' to scan or 'q' to quit.")
 
     # Hand gesture detector
@@ -140,10 +168,14 @@ def scan_document(skip_detection: bool = False, gesture_enabled: bool = True) ->
 
     frame = None
     contour = None
+    first_frame = True
     while True:
         ret, frame = cap.read()
         if not ret:
             break
+        if first_frame:
+            _debug_time(start, "after first frame")
+            first_frame = False
         display = frame.copy()
         if not skip_detection:
             contour = find_document_contour(frame)
