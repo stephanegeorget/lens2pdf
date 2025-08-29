@@ -53,7 +53,9 @@ def save_pdf(image, output_dir: Path | str | None = None) -> Path:
     base_dir = Path(output_dir) if output_dir else Path.cwd()
     base_dir.mkdir(parents=True, exist_ok=True)
     pil_img.save(base_dir / DEBUG_IMAGE_NAME)
-    config = "--dpi 300 -c jpg_quality=100"
+    # Use lossless PNG to avoid JPEG artifacts in the generated PDF
+    config = "--dpi 300 -c pdf_image_format=png"
+
     pdf_bytes = pytesseract.image_to_pdf_or_hocr(
         pil_img, extension="pdf", config=config
     )
