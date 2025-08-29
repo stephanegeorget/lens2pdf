@@ -245,9 +245,9 @@ def scan_document(
             first_frame = False
         display = frame.copy()
         if not skip_detection:
-            contour = find_document_contour(frame, min_area_ratio=min_area_ratio)
-            if contour is not None:
-                cv2.polylines(display, [contour], True, (0, 255, 0), 2)
+            contour = find_document_contour(
+                frame, min_area_ratio=min_area_ratio, preview=display
+            )
 
         if gesture_enabled and hands is not None:
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

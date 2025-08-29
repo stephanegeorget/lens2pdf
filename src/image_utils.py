@@ -13,7 +13,10 @@ from .ocr_utils import check_tesseract_installation
 
 
 def find_document_contour(
-    frame: np.ndarray, *, min_area_ratio: float = 0.1
+    frame: np.ndarray,
+    *,
+    min_area_ratio: float = 0.1,
+    preview: np.ndarray | None = None,
 ) -> np.ndarray | None:
     """Locate a rectangular contour in ``frame``.
 
@@ -25,6 +28,10 @@ def find_document_contour(
         Minimum area (as a fraction of the full frame) that a contour must
         cover to be considered a document.  Smaller values allow detection of
         documents that do not fill most of the camera view.
+    preview:
+        Optional image on which a visual cue of the detected contour will be
+        drawn.  When provided and a contour is found, a green bounding box is
+        overlaid onto this image.  ``preview`` is modified in-place.
     """
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -40,14 +47,19 @@ def find_document_contour(
         approx = cv2.approxPolyDP(c, 0.02 * peri, True)
         area = cv2.contourArea(c)
         if len(approx) == 4 and area > min_area_ratio * frame_area:
+            if preview is not None:
+                cv2.polylines(preview, [approx.astype(int)], True, (0, 255, 0), 2)
             return approx
     if contours:
         area = cv2.contourArea(contours[0])
         if area > max(min_area_ratio, 0.9) * frame_area:
-            return np.array(
+            fallback = np.array(
                 [[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]],
                 dtype=np.float32,
             )
+            if preview is not None:
+                cv2.polylines(preview, [fallback.astype(int)], True, (0, 255, 0), 2)
+            return fallback
     return None
 
 
