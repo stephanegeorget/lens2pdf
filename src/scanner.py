@@ -65,7 +65,7 @@ CAMERA_REGEX = re.compile(r"czur", re.IGNORECASE)
 # ------------------------------------------------------------
 # Input helper
 # ------------------------------------------------------------
-def timed_input(prompt: str, timeout: int = 20) -> str | None:
+def timed_input(prompt: str, timeout: int = 2) -> str | None:
     """Read user input with a timeout. Works on Windows and POSIX."""
     print(prompt, end="", flush=True)
 
