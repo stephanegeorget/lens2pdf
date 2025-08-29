@@ -107,14 +107,28 @@ def test_no_gesture_flag(monkeypatch):
     scanner = setup_fake_cv2(monkeypatch)
     called = {}
 
-    def fake_scan(*, skip_detection, gesture_enabled):
-        called["args"] = (skip_detection, gesture_enabled)
+    def fake_scan(*, skip_detection, gesture_enabled, boost_contrast):
+        called["args"] = (skip_detection, gesture_enabled, boost_contrast)
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-gesture"])
     scanner.main()
 
-    assert called["args"] == (False, False)
+    assert called["args"] == (False, False, True)
+
+
+def test_no_contrast_flag(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    called = {}
+
+    def fake_scan(*, skip_detection, gesture_enabled, boost_contrast):
+        called["args"] = (skip_detection, gesture_enabled, boost_contrast)
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner", "--no-contrast"])
+    scanner.main()
+
+    assert called["args"] == (False, True, False)
 
 
 def test_is_v_sign_sideways(monkeypatch):
