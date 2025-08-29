@@ -109,7 +109,13 @@ def test_no_gesture_flag(monkeypatch):
     called = {}
 
     def fake_scan(
-        *, skip_detection, gesture_enabled, boost_contrast, output_dir, min_area_ratio=0.1
+        *,
+        skip_detection,
+        gesture_enabled,
+        boost_contrast,
+        output_dir,
+        timeout=None,
+        min_area_ratio=0.1,
     ):
         called["args"] = (
             skip_detection,
@@ -131,7 +137,13 @@ def test_no_contrast_flag(monkeypatch):
     called = {}
 
     def fake_scan(
-        *, skip_detection, gesture_enabled, boost_contrast, output_dir, min_area_ratio=0.1
+        *,
+        skip_detection,
+        gesture_enabled,
+        boost_contrast,
+        output_dir,
+        timeout=None,
+        min_area_ratio=0.1,
     ):
         called["args"] = (
             skip_detection,
@@ -153,7 +165,13 @@ def test_output_dir_flag(monkeypatch, tmp_path):
     called = {}
 
     def fake_scan(
-        *, skip_detection, gesture_enabled, boost_contrast, output_dir, min_area_ratio=0.1
+        *,
+        skip_detection,
+        gesture_enabled,
+        boost_contrast,
+        output_dir,
+        timeout=None,
+        min_area_ratio=0.1,
     ):
         called["args"] = (
             skip_detection,
