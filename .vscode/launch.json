@@ -21,7 +21,7 @@
             "name": "Debug scanner",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/scanner.py",
+            "module": "dev.scanner",
             "console": "integratedTerminal"
         }
     ]
