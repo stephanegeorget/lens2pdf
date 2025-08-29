@@ -341,7 +341,7 @@ def test_scan_document_reuses_camera(monkeypatch):
     monkeypatch.setattr(scanner, "save_pdf", lambda img, out: Path("out.pdf"))
     monkeypatch.setattr(scanner, "open_pdf", lambda _p: None)
     monkeypatch.setattr(scanner, "find_document_contour", lambda *a, **k: None)
-    monkeypatch.setattr(scanner, "correct_orientation", lambda img, _c: img)
+    monkeypatch.setattr(scanner, "correct_orientation", lambda img: img)
     monkeypatch.setattr(scanner, "four_point_transform", lambda img, _c: img)
     monkeypatch.setattr(scanner, "sys", SimpleNamespace(stdin=SimpleNamespace(read=lambda n: "")))
     monkeypatch.setattr(scanner, "PREVIEW_SCALE", 1.0)
