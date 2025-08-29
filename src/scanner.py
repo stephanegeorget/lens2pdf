@@ -7,6 +7,7 @@ import queue
 import sys
 import threading
 import time
+import math
 
 import cv2
 import numpy as np
@@ -39,15 +40,25 @@ def _debug_time(start: float, label: str) -> float:
 
 
 def _is_v_sign(hand) -> bool:
-    """Return ``True`` if the hand landmarks form a ``V`` gesture."""
+    """Return ``True`` if the hand landmarks form a ``V`` gesture.
+
+    The gesture is detected based on the distance of finger tips from the
+    wrist which makes the check orientation agnostic. This allows triggering
+    the scan even when the camera is rotated 90 degrees and the ``V`` appears
+    as ``>`` or ``<``.
+    """
 
     lm = hand.landmark
+    wrist = lm[0]
+
+    def dist(a, b):
+        return (a.x - b.x) ** 2 + (a.y - b.y) ** 2
 
     def extended(tip, pip):
-        return lm[tip].y < lm[pip].y
+        return dist(lm[tip], wrist) > dist(lm[pip], wrist)
 
     def folded(tip, pip):
-        return lm[tip].y > lm[pip].y
+        return dist(lm[tip], wrist) < dist(lm[pip], wrist)
 
     # Index and middle fingers extended
     if not (extended(8, 6) and extended(12, 10)):
@@ -56,7 +67,8 @@ def _is_v_sign(hand) -> bool:
     if not (folded(16, 14) and folded(20, 18)):
         return False
     # Tips reasonably far apart to form a V shape
-    if abs(lm[8].x - lm[12].x) < 0.1:
+    tip_separation = math.hypot(lm[8].x - lm[12].x, lm[8].y - lm[12].y)
+    if tip_separation < 0.1:
         return False
     return True
 

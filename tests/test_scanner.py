@@ -116,3 +116,49 @@ def test_no_gesture_flag(monkeypatch):
 
     assert called["args"] == (False, False)
 
+
+def test_is_v_sign_sideways(monkeypatch):
+    """The V gesture should be detected even when rotated 90 degrees."""
+    scanner = setup_fake_cv2(monkeypatch)
+
+    def lm(x, y):
+        return SimpleNamespace(x=x, y=y)
+
+    def build_hand(mapping):
+        lms = [lm(0, 0) for _ in range(21)]
+        for idx, (x, y) in mapping.items():
+            lms[idx] = lm(x, y)
+        return SimpleNamespace(landmark=lms)
+
+    # ``>`` shape (camera rotated clockwise)
+    right_hand = build_hand(
+        {
+            0: (0, 0),
+            6: (0.4, 0.4),
+            8: (0.8, 0.4),
+            10: (0.4, 0.6),
+            12: (0.8, 0.6),
+            14: (0.4, 0.7),
+            16: (0.2, 0.7),
+            18: (0.4, 0.8),
+            20: (0.2, 0.8),
+        }
+    )
+    assert scanner._is_v_sign(right_hand)
+
+    # ``<`` shape (camera rotated counter-clockwise)
+    left_hand = build_hand(
+        {
+            0: (1, 0),
+            6: (0.6, 0.4),
+            8: (0.2, 0.4),
+            10: (0.6, 0.6),
+            12: (0.2, 0.6),
+            14: (0.6, 0.7),
+            16: (0.8, 0.7),
+            18: (0.6, 0.8),
+            20: (0.8, 0.8),
+        }
+    )
+    assert scanner._is_v_sign(left_hand)
+
