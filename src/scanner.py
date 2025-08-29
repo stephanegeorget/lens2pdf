@@ -34,6 +34,10 @@ Image = ocr_utils.Image
 # Scale factor for preview windows (e.g. 0.5 = half size)
 PREVIEW_SCALE = 0.5
 
+# Cache an opened camera so subsequent scans can reuse the stream without
+# re-enumerating available devices which can take a long time.
+_cached_cap: cv2.VideoCapture | None = None
+
 
 def _debug_time(start: float, label: str) -> float:
     """Print a debug message showing elapsed time since ``start``."""
@@ -190,18 +194,23 @@ def scan_document(
     """
     start = time.perf_counter()
     print("[DEBUG] Starting scan_document")
-    cameras = list_cameras()
-    _debug_time(start, "after list_cameras")
-    cam_index = select_camera(cameras)
-    _debug_time(start, "after select_camera")
-    cap = cv2.VideoCapture(cam_index)
-    _debug_time(start, "after VideoCapture")
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
-    _debug_time(start, "after setting resolution")
-    if not cap.isOpened():
-        raise RuntimeError("Unable to open camera")
-    _debug_time(start, "after cap.isOpened")
+
+    global _cached_cap
+    if _cached_cap is None:
+        cameras = list_cameras()
+        _debug_time(start, "after list_cameras")
+        cam_index = select_camera(cameras)
+        _debug_time(start, "after select_camera")
+        _cached_cap = cv2.VideoCapture(cam_index)
+        _debug_time(start, "after VideoCapture")
+        _cached_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
+        _cached_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
+        _debug_time(start, "after setting resolution")
+        if not _cached_cap.isOpened():
+            raise RuntimeError("Unable to open camera")
+        _debug_time(start, "after cap.isOpened")
+    cap = _cached_cap
+
     _create_window("Scanner")
     _debug_time(start, "after namedWindow")
     print("Press 's' to scan or 'q' to quit.")
@@ -320,7 +329,9 @@ def scan_document(
             frame = None
             break
 
-    cap.release()
+    if frame is None:
+        cap.release()
+        _cached_cap = None
     cv2.destroyAllWindows()
     if frame is None:
         return False
