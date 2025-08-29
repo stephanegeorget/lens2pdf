@@ -102,10 +102,16 @@ def correct_orientation(image: np.ndarray) -> np.ndarray:
     return image
 
 
+def increase_contrast(image: np.ndarray, factor: float = 1.25) -> np.ndarray:
+    """Return ``image`` with its contrast scaled by ``factor``."""
+    return cv2.convertScaleAbs(image, alpha=factor, beta=0)
+
+
 __all__ = [
     "find_document_contour",
     "order_points",
     "four_point_transform",
     "rotate_bound",
     "correct_orientation",
+    "increase_contrast",
 ]

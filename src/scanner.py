@@ -18,6 +18,7 @@ from .image_utils import (
     correct_orientation,
     find_document_contour,
     four_point_transform,
+    increase_contrast,
 )
 from . import ocr_utils
 
@@ -120,7 +121,11 @@ def test_camera() -> None:
     cv2.destroyAllWindows()
 
 
-def scan_document(skip_detection: bool = False, gesture_enabled: bool = True) -> None:
+def scan_document(
+    skip_detection: bool = False,
+    gesture_enabled: bool = True,
+    boost_contrast: bool = True,
+) -> None:
     """Run the interactive document scanner."""
     start = time.perf_counter()
     print("[DEBUG] Starting scan_document")
@@ -266,6 +271,8 @@ def scan_document(skip_detection: bool = False, gesture_enabled: bool = True) ->
         corrected = warped
     else:
         corrected = correct_orientation(warped)
+    if boost_contrast:
+        corrected = increase_contrast(corrected)
     pdf_path = save_pdf(corrected)
     print(f"Saved {pdf_path}")
 
@@ -288,12 +295,19 @@ def main() -> None:
         action="store_true",
         help="disable hand gesture scan trigger",
     )
+    parser.add_argument(
+        "--no-contrast",
+        action="store_true",
+        help="disable 25% contrast boost",
+    )
     args = parser.parse_args()
     if args.test_camera:
         test_camera()
     else:
         scan_document(
-            skip_detection=args.no_detect, gesture_enabled=not args.no_gesture
+            skip_detection=args.no_detect,
+            gesture_enabled=not args.no_gesture,
+            boost_contrast=not args.no_contrast,
         )
 
 
