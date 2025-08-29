@@ -115,8 +115,8 @@ def test_camera() -> None:
     _debug_time(start, "after select_camera")
     cap = cv2.VideoCapture(cam_index)
     _debug_time(start, "after VideoCapture")
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
     _debug_time(start, "after setting resolution")
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
@@ -162,8 +162,8 @@ def scan_document(
     _debug_time(start, "after select_camera")
     cap = cv2.VideoCapture(cam_index)
     _debug_time(start, "after VideoCapture")
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
     _debug_time(start, "after setting resolution")
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
