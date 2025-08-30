@@ -18,9 +18,7 @@ from PIL import Image
 
 from .camera import CameraInfo, list_cameras, select_camera
 from .image_utils import (
-    correct_orientation,
-    find_document_contour,
-    four_point_transform,
+    find_long_edges,
     increase_contrast,
     reduce_jpeg_artifacts,
 )
@@ -193,14 +191,11 @@ def test_camera() -> None:
 
 
 def scan_document(
-    skip_detection: bool = False,
     gesture_enabled: bool = True,
     boost_contrast: bool = True,
     output_dir: Path | str | None = None,
     timeout: float | None = None,
     stack_count: int = 10,
-    *,
-    min_area_ratio: float = 0.1,
 ) -> bool:
     """Run the interactive document scanner.
 
@@ -213,9 +208,6 @@ def scan_document(
         Number of frames to average together for a single scan.  Using multiple
         frames can reduce noise and slightly improve effective resolution when
         the document is stationary.
-    min_area_ratio:
-        Forwarded to :func:`src.image_utils.find_document_contour` to control the
-        minimum size of detectable documents.
     Returns
     -------
     bool
@@ -271,7 +263,6 @@ def scan_document(
     threading.Thread(target=stdin_reader, daemon=True).start()
 
     frame = None
-    contour = None
     first_frame = True
     wait_start = time.monotonic()
     while True:
@@ -282,10 +273,12 @@ def scan_document(
             _debug_time(start, "after first frame")
             first_frame = False
         display = frame.copy()
-        if not skip_detection:
-            contour = find_document_contour(
-                frame, min_area_ratio=min_area_ratio, preview=display
-            )
+
+        edges = find_long_edges(frame)
+        for x1, y1, x2, y2, angle in edges:
+            diff = min(abs(angle), abs(angle - 90))
+            color = (0, 255, 0) if diff <= 3 else (0, 0, 255)
+            cv2.line(display, (x1, y1), (x2, y2), color, 2)
 
         if gesture_enabled and hands is not None:
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -368,23 +361,11 @@ def scan_document(
     if frame is None:
         return False
 
-    if not skip_detection:
-        contour = find_document_contour(frame, min_area_ratio=min_area_ratio)
-    else:
-        contour = None
-    if contour is not None and not skip_detection:
-        warped = four_point_transform(frame, contour)
-    else:
-        warped = frame
-    if skip_detection:
-        corrected = warped
-    else:
-        corrected = correct_orientation(warped)
     if boost_contrast:
-        corrected = increase_contrast(corrected)
+        frame = increase_contrast(frame)
     # Lightly denoise the frame to reduce visible JPEG artifacts before saving
-    corrected = reduce_jpeg_artifacts(corrected)
-    pdf_path = save_pdf(corrected, output_dir)
+    frame = reduce_jpeg_artifacts(frame)
+    pdf_path = save_pdf(frame, output_dir)
     print(f"Saved {pdf_path}")
     open_pdf(pdf_path)
 
@@ -398,11 +379,6 @@ def main() -> None:
         "--test-camera",
         action="store_true",
         help="display camera feed without scanning",
-    )
-    parser.add_argument(
-        "--no-detect",
-        action="store_true",
-        help="disable document bounding box and rotation detection",
     )
     parser.add_argument(
         "--no-gesture",
@@ -425,7 +401,6 @@ def main() -> None:
         test_camera()
     else:
         while scan_document(
-            skip_detection=args.no_detect,
             gesture_enabled=not args.no_gesture,
             boost_contrast=not args.no_contrast,
             output_dir=args.output_dir,

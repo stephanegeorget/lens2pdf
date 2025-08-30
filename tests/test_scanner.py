@@ -111,28 +111,24 @@ def test_no_gesture_flag(monkeypatch):
 
     def fake_scan(
         *,
-        skip_detection,
         gesture_enabled,
         boost_contrast,
         output_dir,
         timeout=None,
         stack_count=10,
-        min_area_ratio=0.1,
     ):
         called["args"] = (
-            skip_detection,
             gesture_enabled,
             boost_contrast,
             output_dir,
             stack_count,
-            min_area_ratio,
         )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-gesture"])
     scanner.main()
 
-    assert called["args"] == (False, False, True, None, 10, 0.1)
+    assert called["args"] == (False, True, None, 10)
 
 
 def test_no_contrast_flag(monkeypatch):
@@ -141,28 +137,24 @@ def test_no_contrast_flag(monkeypatch):
 
     def fake_scan(
         *,
-        skip_detection,
         gesture_enabled,
         boost_contrast,
         output_dir,
         timeout=None,
         stack_count=10,
-        min_area_ratio=0.1,
     ):
         called["args"] = (
-            skip_detection,
             gesture_enabled,
             boost_contrast,
             output_dir,
             stack_count,
-            min_area_ratio,
         )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-contrast"])
     scanner.main()
 
-    assert called["args"] == (False, True, False, None, 10, 0.1)
+    assert called["args"] == (True, False, None, 10)
 
 
 def test_output_dir_flag(monkeypatch, tmp_path):
@@ -171,21 +163,17 @@ def test_output_dir_flag(monkeypatch, tmp_path):
 
     def fake_scan(
         *,
-        skip_detection,
         gesture_enabled,
         boost_contrast,
         output_dir,
         timeout=None,
         stack_count=10,
-        min_area_ratio=0.1,
     ):
         called["args"] = (
-            skip_detection,
             gesture_enabled,
             boost_contrast,
             output_dir,
             stack_count,
-            min_area_ratio,
         )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
@@ -196,7 +184,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
     )
     scanner.main()
 
-    assert called["args"] == (False, True, True, str(tmp_path), 10, 0.1)
+    assert called["args"] == (True, True, str(tmp_path), 10)
 
 
 def test_default_timeout(monkeypatch):
@@ -205,13 +193,11 @@ def test_default_timeout(monkeypatch):
 
     def fake_scan(
         *,
-        skip_detection,
         gesture_enabled,
         boost_contrast,
         output_dir,
         timeout=None,
         stack_count=10,
-        min_area_ratio=0.1,
     ):
         called["timeout"] = timeout
 
@@ -343,14 +329,12 @@ def test_scan_document_reuses_camera(monkeypatch):
     monkeypatch.setattr(scanner, "reduce_jpeg_artifacts", lambda img: img)
     monkeypatch.setattr(scanner, "save_pdf", lambda img, out: Path("out.pdf"))
     monkeypatch.setattr(scanner, "open_pdf", lambda _p: None)
-    monkeypatch.setattr(scanner, "find_document_contour", lambda *a, **k: None)
-    monkeypatch.setattr(scanner, "correct_orientation", lambda img: img)
-    monkeypatch.setattr(scanner, "four_point_transform", lambda img, _c: img)
+    monkeypatch.setattr(scanner, "find_long_edges", lambda *a, **k: [])
     monkeypatch.setattr(scanner, "sys", SimpleNamespace(stdin=SimpleNamespace(read=lambda n: "")))
     monkeypatch.setattr(scanner, "PREVIEW_SCALE", 1.0)
 
-    scanner.scan_document(skip_detection=True, gesture_enabled=False, boost_contrast=False)
-    scanner.scan_document(skip_detection=True, gesture_enabled=False, boost_contrast=False)
+    scanner.scan_document(gesture_enabled=False, boost_contrast=False)
+    scanner.scan_document(gesture_enabled=False, boost_contrast=False)
 
     assert calls == {"list": 1, "select": 1, "open": 1}
 
@@ -390,10 +374,9 @@ def test_scan_document_stacks_frames(monkeypatch):
     monkeypatch.setattr(scanner, "list_cameras", lambda: [(0, "cam")])
     monkeypatch.setattr(scanner, "select_camera", lambda _c: 0)
     monkeypatch.setattr(scanner, "_create_window", lambda *_: None)
-    monkeypatch.setattr(scanner, "find_document_contour", lambda *a, **k: None)
-    monkeypatch.setattr(scanner, "correct_orientation", lambda img: img)
-    monkeypatch.setattr(scanner, "four_point_transform", lambda img, _c: img)
+    monkeypatch.setattr(scanner, "find_long_edges", lambda *a, **k: [])
     monkeypatch.setattr(scanner, "increase_contrast", lambda img: img)
+    monkeypatch.setattr(scanner, "reduce_jpeg_artifacts", lambda img: img)
     saved = {}
 
     def fake_save(img, out):
@@ -406,7 +389,6 @@ def test_scan_document_stacks_frames(monkeypatch):
     monkeypatch.setattr(scanner, "PREVIEW_SCALE", 1.0)
 
     scanner.scan_document(
-        skip_detection=True,
         gesture_enabled=False,
         boost_contrast=False,
         stack_count=3,
