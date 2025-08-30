@@ -74,6 +74,8 @@ The steps below assume no prior Python knowledge.
   - **Windows**: double‑click `run_lens2pdf.bat` or run `python src/scanner.py` from an activated virtual environment.
   - **macOS/Linux**: run `python src/scanner.py` from an activated virtual environment.
 - Optional camera test: `python src/scanner.py --test-camera`.
+- Adjust edge straightness tolerance (default 2°):
+  `python src/scanner.py --angle-threshold 5`.
 - Position your document in view. When ready, show a **V sign** (or press `s`). The app captures the page, saves a PDF in the current directory and opens it. Press `q` to quit.
 
 ## Running tests

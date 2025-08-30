@@ -116,19 +116,21 @@ def test_no_gesture_flag(monkeypatch):
         output_dir,
         timeout=None,
         stack_count=10,
+        angle_threshold=2,
     ):
         called["args"] = (
             gesture_enabled,
             boost_contrast,
             output_dir,
             stack_count,
+            angle_threshold,
         )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-gesture"])
     scanner.main()
 
-    assert called["args"] == (False, True, None, 10)
+    assert called["args"] == (False, True, None, 10, 2)
 
 
 def test_no_contrast_flag(monkeypatch):
@@ -142,19 +144,21 @@ def test_no_contrast_flag(monkeypatch):
         output_dir,
         timeout=None,
         stack_count=10,
+        angle_threshold=2,
     ):
         called["args"] = (
             gesture_enabled,
             boost_contrast,
             output_dir,
             stack_count,
+            angle_threshold,
         )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-contrast"])
     scanner.main()
 
-    assert called["args"] == (True, False, None, 10)
+    assert called["args"] == (True, False, None, 10, 2)
 
 
 def test_output_dir_flag(monkeypatch, tmp_path):
@@ -168,12 +172,14 @@ def test_output_dir_flag(monkeypatch, tmp_path):
         output_dir,
         timeout=None,
         stack_count=10,
+        angle_threshold=2,
     ):
         called["args"] = (
             gesture_enabled,
             boost_contrast,
             output_dir,
             stack_count,
+            angle_threshold,
         )
 
     monkeypatch.setattr(scanner, "scan_document", fake_scan)
@@ -184,7 +190,29 @@ def test_output_dir_flag(monkeypatch, tmp_path):
     )
     scanner.main()
 
-    assert called["args"] == (True, True, str(tmp_path), 10)
+    assert called["args"] == (True, True, str(tmp_path), 10, 2)
+
+
+def test_angle_threshold_flag(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    called = {}
+
+    def fake_scan(
+        *,
+        gesture_enabled,
+        boost_contrast,
+        output_dir,
+        timeout=None,
+        stack_count=10,
+        angle_threshold=2,
+    ):
+        called["angle_threshold"] = angle_threshold
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner", "--angle-threshold", "5"])
+    scanner.main()
+
+    assert called["angle_threshold"] == 5
 
 
 def test_default_timeout(monkeypatch):
@@ -198,6 +226,7 @@ def test_default_timeout(monkeypatch):
         output_dir,
         timeout=None,
         stack_count=10,
+        angle_threshold=2,
     ):
         called["timeout"] = timeout
 
