@@ -185,7 +185,12 @@ def test_camera() -> None:
                 interpolation=cv2.INTER_AREA,
             )
         cv2.imshow("Camera Test", preview)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        key = cv2.waitKey(1)
+        # Allow quitting either by pressing ``q`` or closing the window
+        if (
+            (key != -1 and chr(key & 0xFF).lower() == "q")
+            or cv2.getWindowProperty("Camera Test", cv2.WND_PROP_VISIBLE) < 1
+        ):
             break
     cap.release()
     cv2.destroyAllWindows()
@@ -334,17 +339,19 @@ def scan_document(
             )
         cv2.imshow("Scanner", display)
 
-        key = cv2.waitKey(1) & 0xFF
+        key = cv2.waitKey(1)
+        key_char = ""
+        if key != -1:
+            key_char = chr(key & 0xFF).lower()
         while not stdin_q.empty():
-            char = stdin_q.get_nowait().lower()
-            if char == "q":
-                key = ord("q")
-            elif char == "s":
-                key = ord("s")
+            key_char = stdin_q.get_nowait().lower()
 
-        if key in (ord("s"), 13):
+        if key_char == "s" or key == 13:
             break
-        if key == ord("q"):
+        if (
+            key_char == "q"
+            or cv2.getWindowProperty("Scanner", cv2.WND_PROP_VISIBLE) < 1
+        ):
             frame = None
             break
 
