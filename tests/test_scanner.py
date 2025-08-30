@@ -330,6 +330,7 @@ def test_scan_document_reuses_camera(monkeypatch):
     monkeypatch.setattr(scanner, "save_pdf", lambda img, out: Path("out.pdf"))
     monkeypatch.setattr(scanner, "open_pdf", lambda _p: None)
     monkeypatch.setattr(scanner, "find_long_edges", lambda *a, **k: [])
+    monkeypatch.setattr(scanner, "correct_orientation", lambda img: img)
     monkeypatch.setattr(scanner, "sys", SimpleNamespace(stdin=SimpleNamespace(read=lambda n: "")))
     monkeypatch.setattr(scanner, "PREVIEW_SCALE", 1.0)
 
@@ -377,6 +378,7 @@ def test_scan_document_stacks_frames(monkeypatch):
     monkeypatch.setattr(scanner, "find_long_edges", lambda *a, **k: [])
     monkeypatch.setattr(scanner, "increase_contrast", lambda img: img)
     monkeypatch.setattr(scanner, "reduce_jpeg_artifacts", lambda img: img)
+    monkeypatch.setattr(scanner, "correct_orientation", lambda img: img)
     saved = {}
 
     def fake_save(img, out):
