@@ -35,8 +35,16 @@ Path = ocr_utils.Path
 pytesseract = ocr_utils.pytesseract
 Image = ocr_utils.Image
 
-# Scale factor for preview windows (e.g. 0.5 = half size)
-PREVIEW_SCALE = 0.5
+# Scale factor for preview windows. ``0.5`` would be half size, ``1.0`` would
+# show the full camera resolution.  Using a quarter-sized preview keeps the
+# on-screen window compact even when the capture resolution is high.
+PREVIEW_SCALE = 0.25
+
+# Default capture resolution chosen to balance quality and responsiveness.  A
+# lower resolution keeps the preview smooth while still providing enough detail
+# for OCR.
+CAPTURE_WIDTH = 1600
+CAPTURE_HEIGHT = 1200
 
 # Cache an opened camera so subsequent scans can reuse the stream without
 # re-enumerating available devices which can take a long time.
@@ -100,9 +108,7 @@ def _is_v_sign(hand) -> bool:
     return True
 
 
-def _stack_frames(
-    cap: cv2.VideoCapture, base: np.ndarray, count: int
-) -> np.ndarray:
+def _stack_frames(cap: cv2.VideoCapture, base: np.ndarray, count: int) -> np.ndarray:
     """Return the average of ``count`` frames from ``cap``.
 
     The first frame to include in the average is provided via ``base``; the
@@ -146,7 +152,9 @@ def _open_capture(cam_index: int, cameras) -> cv2.VideoCapture:
     backend_const = None
     backend_name = getattr(cam, "backend", None) if cam is not None else None
     if backend_name:
-        const_name = backend_name if backend_name.startswith("CAP_") else f"CAP_{backend_name}"
+        const_name = (
+            backend_name if backend_name.startswith("CAP_") else f"CAP_{backend_name}"
+        )
         backend_const = getattr(cv2, const_name, None)
 
     if backend_const is not None:
@@ -162,7 +170,9 @@ def check_tesseract_installation() -> None:  # pragma: no cover - thin wrapper
     return ocr_utils.check_tesseract_installation()
 
 
-def save_pdf(image: np.ndarray, output_dir: Path | str | None = None):  # pragma: no cover - thin wrapper
+def save_pdf(
+    image: np.ndarray, output_dir: Path | str | None = None
+):  # pragma: no cover - thin wrapper
     """Proxy to ``ocr_utils.save_pdf`` using local modules."""
     ocr_utils.shutil = shutil
     ocr_utils.Path = Path
@@ -193,8 +203,8 @@ def test_camera() -> None:
     _debug_time(start, "after select_camera")
     cap = _open_capture(cam_index, cameras)
     _debug_time(start, "after VideoCapture")
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAPTURE_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAPTURE_HEIGHT)
     _debug_time(start, "after setting resolution")
     if not cap.isOpened():
         raise RuntimeError("Unable to open camera")
@@ -222,10 +232,9 @@ def test_camera() -> None:
         cv2.imshow("Camera Test", preview)
         key = cv2.waitKey(1)
         # Allow quitting either by pressing ``q`` or closing the window
-        if (
-            (key != -1 and chr(key & 0xFF).lower() == "q")
-            or cv2.getWindowProperty("Camera Test", cv2.WND_PROP_VISIBLE) < 1
-        ):
+        if (key != -1 and chr(key & 0xFF).lower() == "q") or cv2.getWindowProperty(
+            "Camera Test", cv2.WND_PROP_VISIBLE
+        ) < 1:
             break
     cap.release()
     cv2.destroyAllWindows()
@@ -277,8 +286,8 @@ def scan_document(
         _debug_time(start, "after select_camera")
         _cached_cap = _open_capture(cam_index, cameras)
         _debug_time(start, "after VideoCapture")
-        _cached_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
-        _cached_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
+        _cached_cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAPTURE_WIDTH)
+        _cached_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAPTURE_HEIGHT)
         _debug_time(start, "after setting resolution")
         if not _cached_cap.isOpened():
             raise RuntimeError("Unable to open camera")

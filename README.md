@@ -44,6 +44,13 @@ python -m src.scanner
 Hold a document in view and show a V sign (or press `s`) to capture. Press `q`
 to quit.
 
+### Preview window and performance
+
+The preview window is scaled to 25% of the camera resolution and the capture
+defaults to 1600×1200 to keep the video feed responsive. These values can be
+adjusted in `src/scanner.py` via `PREVIEW_SCALE`, `CAPTURE_WIDTH` and
+`CAPTURE_HEIGHT` if your hardware performs better at different settings.
+
 ## Tests
 
 ```bash
