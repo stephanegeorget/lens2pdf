@@ -197,6 +197,7 @@ def scan_document(
     output_dir: Path | str | None = None,
     timeout: float | None = None,
     stack_count: int = 10,
+    angle_threshold: float = 2,
 ) -> bool:
     """Run the interactive document scanner.
 
@@ -209,6 +210,9 @@ def scan_document(
         Number of frames to average together for a single scan.  Using multiple
         frames can reduce noise and slightly improve effective resolution when
         the document is stationary.
+    angle_threshold:
+        Maximum allowed deviation in degrees for edges to be drawn green in the
+        preview.
     Returns
     -------
     bool
@@ -278,7 +282,7 @@ def scan_document(
         edges = find_long_edges(frame)
         for x1, y1, x2, y2, angle in edges:
             diff = min(abs(angle), abs(angle - 90))
-            color = (0, 255, 0) if diff <= 3 else (0, 0, 255)
+            color = (0, 255, 0) if diff <= angle_threshold else (0, 0, 255)
             cv2.line(display, (x1, y1), (x2, y2), color, 2)
 
         if gesture_enabled and hands is not None:
@@ -398,6 +402,12 @@ def main() -> None:
         default=None,
         help="directory to store generated PDF files",
     )
+    parser.add_argument(
+        "--angle-threshold",
+        type=float,
+        default=2,
+        help="maximum deviation in degrees for edges to appear green",
+    )
     args = parser.parse_args()
     if args.test_camera:
         test_camera()
@@ -407,6 +417,7 @@ def main() -> None:
             boost_contrast=not args.no_contrast,
             output_dir=args.output_dir,
             timeout=60,
+            angle_threshold=args.angle_threshold,
         ):
             pass
 
