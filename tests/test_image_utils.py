@@ -1,7 +1,6 @@
 import importlib
-import importlib
-import types
 import sys
+import types
 import numpy as np
 
 
@@ -71,3 +70,30 @@ def test_find_long_edges_detects_axes(monkeypatch):
     angles = [angle for *_coords, angle in edges]
     assert any(abs(a) <= 3 for a in angles)
     assert any(abs(a - 90) <= 3 for a in angles)
+
+
+def test_correct_orientation_uses_tesseract(monkeypatch):
+    called = {}
+
+    def fake_rotate(img, code):
+        called["code"] = code
+        return img
+
+    fake_cv2 = types.SimpleNamespace(
+        rotate=fake_rotate,
+        ROTATE_90_CLOCKWISE=1,
+        ROTATE_180=2,
+        ROTATE_90_COUNTERCLOCKWISE=3,
+    )
+    fake_pytesseract = types.SimpleNamespace(image_to_osd=lambda img: "Rotate: 90")
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+    monkeypatch.setitem(sys.modules, "pytesseract", fake_pytesseract)
+
+    image_utils = importlib.import_module("src.image_utils")
+    importlib.reload(image_utils)
+    monkeypatch.setattr(image_utils, "check_tesseract_installation", lambda: None)
+
+    img = np.zeros((10, 10, 3), dtype=np.uint8)
+    result = image_utils.correct_orientation(img)
+    assert result is img
+    assert called["code"] == fake_cv2.ROTATE_90_CLOCKWISE

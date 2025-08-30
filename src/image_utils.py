@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
+import re
+import pytesseract
+
+from .ocr_utils import check_tesseract_installation
 
 
 def find_long_edges(
@@ -56,4 +60,28 @@ def reduce_jpeg_artifacts(image: np.ndarray) -> np.ndarray:
     return cv2.fastNlMeansDenoisingColored(image, None, 10, 10, 7, 21)
 
 
-__all__ = ["find_long_edges", "increase_contrast", "reduce_jpeg_artifacts"]
+def correct_orientation(image: np.ndarray) -> np.ndarray:
+    """Rotate ``image`` to its upright orientation using Tesseract OSD."""
+    check_tesseract_installation()
+    try:
+        osd = pytesseract.image_to_osd(image)
+        match = re.search(r"Rotate: (\d+)", osd)
+        angle = int(match.group(1)) if match else 0
+    except Exception:
+        angle = 0
+
+    if angle == 90:
+        return cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    if angle == 180:
+        return cv2.rotate(image, cv2.ROTATE_180)
+    if angle == 270:
+        return cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return image
+
+
+__all__ = [
+    "find_long_edges",
+    "increase_contrast",
+    "reduce_jpeg_artifacts",
+    "correct_orientation",
+]

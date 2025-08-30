@@ -21,6 +21,7 @@ from .image_utils import (
     find_long_edges,
     increase_contrast,
     reduce_jpeg_artifacts,
+    correct_orientation,
 )
 from . import ocr_utils
 
@@ -361,6 +362,7 @@ def scan_document(
     if frame is None:
         return False
 
+    frame = correct_orientation(frame)
     if boost_contrast:
         frame = increase_contrast(frame)
     # Lightly denoise the frame to reduce visible JPEG artifacts before saving
