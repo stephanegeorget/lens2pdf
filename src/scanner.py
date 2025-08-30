@@ -40,6 +40,11 @@ Image = ocr_utils.Image
 # on-screen window compact even when the capture resolution is high.
 PREVIEW_SCALE = 0.25
 
+# Scale factor applied before running heavy OpenCV algorithms.  Processing a
+# smaller image reduces CPU usage while the original resolution is kept for
+# the final capture.
+PROCESSING_SCALE = 0.5
+
 # Default capture resolution chosen to balance quality and responsiveness.  A
 # lower resolution keeps the preview smooth while still providing enough detail
 # for OCR.
@@ -342,15 +347,40 @@ def scan_document(
             first_frame = False
         display = frame.copy()
 
+        # Downscale the frame for CPU-intensive processing steps.
+        proc = frame
+        if PROCESSING_SCALE != 1.0:
+            interp = getattr(cv2, "INTER_AREA", None)
+            if interp is not None:
+                proc = cv2.resize(
+                    frame,
+                    (0, 0),
+                    fx=PROCESSING_SCALE,
+                    fy=PROCESSING_SCALE,
+                    interpolation=interp,
+                )
+            else:  # pragma: no cover - fallback when constant missing
+                proc = cv2.resize(
+                    frame,
+                    (0, 0),
+                    fx=PROCESSING_SCALE,
+                    fy=PROCESSING_SCALE,
+                )
+
         # Show prominent edges so the user can adjust the document alignment.
-        edges = find_long_edges(frame)
+        edges = find_long_edges(proc)
+        scale = 1.0 / PROCESSING_SCALE if PROCESSING_SCALE != 1.0 else 1.0
         for x1, y1, x2, y2, angle in edges:
+            x1 = int(x1 * scale)
+            y1 = int(y1 * scale)
+            x2 = int(x2 * scale)
+            y2 = int(y2 * scale)
             diff = min(abs(angle), abs(angle - 90))
             color = (0, 255, 0) if diff <= angle_threshold else (0, 0, 255)
             cv2.line(display, (x1, y1), (x2, y2), color, 2)
 
         if gesture_enabled and hands is not None:
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            rgb = cv2.cvtColor(proc, cv2.COLOR_BGR2RGB)
             results = hands.process(rgb)
             if results.multi_hand_landmarks and any(
                 _is_v_sign(h) for h in results.multi_hand_landmarks
