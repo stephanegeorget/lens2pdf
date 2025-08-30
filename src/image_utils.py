@@ -23,27 +23,80 @@ def find_long_edges(
     absolute angle of the line segment in degrees.
     """
 
+    def _extend_to_bounds(x1: int, y1: int, x2: int, y2: int) -> tuple[int, int, int, int]:
+        """Return the segment extended to the image bounds."""
+
+        if x1 == x2:
+            return x1, 0, x2, h - 1
+        if y1 == y2:
+            return 0, y1, w - 1, y2
+
+        slope = (y2 - y1) / (x2 - x1)
+        intercept = y1 - slope * x1
+        points: list[tuple[int, int]] = []
+
+        y = intercept
+        if 0 <= y <= h - 1:
+            points.append((0, int(round(y))))
+
+        y = slope * (w - 1) + intercept
+        if 0 <= y <= h - 1:
+            points.append((w - 1, int(round(y))))
+
+        if slope != 0:
+            x = -intercept / slope
+            if 0 <= x <= w - 1:
+                points.append((int(round(x)), 0))
+
+            x = (h - 1 - intercept) / slope
+            if 0 <= x <= w - 1:
+                points.append((int(round(x)), h - 1))
+
+        if len(points) >= 2:
+            max_dist = -1.0
+            best = (x1, y1, x2, y2)
+            for i in range(len(points)):
+                for j in range(i + 1, len(points)):
+                    p1, p2 = points[i], points[j]
+                    dist = (p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2
+                    if dist > max_dist:
+                        max_dist = dist
+                        best = (p1[0], p1[1], p2[0], p2[1])
+            return best
+        return x1, y1, x2, y2
+
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edges = cv2.Canny(blurred, 50, 150)
 
     h, w = gray.shape[:2]
     min_len = int(min(h, w) * min_length_ratio)
+    min_line_len = max(10, min_len // 2)
     lines = cv2.HoughLinesP(
-        edges, 1, np.pi / 180, threshold=50, minLineLength=min_len, maxLineGap=10
+        edges,
+        1,
+        np.pi / 180,
+        threshold=50,
+        minLineLength=min_line_len,
+        maxLineGap=10,
     )
 
     results: list[tuple[int, int, int, int, float, float]] = []
     if lines is not None:
         for x1, y1, x2, y2 in lines[:, 0]:
-            length = float(np.hypot(x2 - x1, y2 - y1))
-            angle = abs(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+            ex1, ey1, ex2, ey2 = _extend_to_bounds(x1, y1, x2, y2)
+            length = float(np.hypot(ex2 - ex1, ey2 - ey1))
+            if length < min_len:
+                continue
+            angle = abs(np.degrees(np.arctan2(ey2 - ey1, ex2 - ex1)))
             if angle > 180:
                 angle -= 180
-            results.append((x1, y1, x2, y2, angle, length))
+            results.append((ex1, ey1, ex2, ey2, angle, length))
         results.sort(key=lambda x: x[5], reverse=True)
 
-    return [(x1, y1, x2, y2, angle) for x1, y1, x2, y2, angle, _ in results[:max_edges]]
+    return [
+        (x1, y1, x2, y2, angle) for x1, y1, x2, y2, angle, _ in results[:max_edges]
+    ]
 
 
 def increase_contrast(image: np.ndarray, factor: float = 1.25) -> np.ndarray:
