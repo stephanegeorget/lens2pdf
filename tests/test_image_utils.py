@@ -1,4 +1,5 @@
 import importlib
+import importlib
 import types
 import sys
 import numpy as np
@@ -39,42 +40,34 @@ def test_reduce_jpeg_artifacts(monkeypatch):
     assert called["args"] == (10, 10, 7, 21)
 
 
-def test_find_document_contour_small_rotated():
-    import cv2
+def test_find_long_edges_detects_axes(monkeypatch):
+    def fake_cvtColor(img, code):
+        return img[:, :, 0]
 
-    image_utils = importlib.import_module("src.image_utils")
-    importlib.reload(image_utils)
+    def fake_blur(img, k, s):
+        return img
 
-    frame = np.zeros((200, 200, 3), dtype=np.uint8)
-    rect = ((100, 100), (80, 60), 30)
-    box = cv2.boxPoints(rect).astype(int)
-    cv2.drawContours(frame, [box], -1, (255, 255, 255), -1)
+    def fake_canny(img, t1, t2):
+        return img
 
-    assert image_utils.find_document_contour(frame, min_area_ratio=0.5) is None
+    def fake_hough(edges, rho, theta, **kwargs):
+        return np.array([[[0, 100, 199, 100]], [[100, 0, 100, 199]]])
 
-    contour = image_utils.find_document_contour(frame, min_area_ratio=0.1)
-    assert contour is not None
-
-    warped = image_utils.four_point_transform(frame, contour)
-    h, w = warped.shape[:2]
-    assert abs(w - 80) <= 5
-    assert abs(h - 60) <= 5
-
-
-def test_find_document_contour_preview_draws_box():
-    import cv2
-
-    image_utils = importlib.import_module("src.image_utils")
-    importlib.reload(image_utils)
-
-    frame = np.zeros((200, 200, 3), dtype=np.uint8)
-    rect = ((100, 100), (80, 60), 0)
-    box = cv2.boxPoints(rect).astype(int)
-    cv2.drawContours(frame, [box], -1, (255, 255, 255), -1)
-
-    preview = frame.copy()
-    contour = image_utils.find_document_contour(
-        frame, min_area_ratio=0.1, preview=preview
+    fake_cv2 = types.SimpleNamespace(
+        cvtColor=fake_cvtColor,
+        COLOR_BGR2GRAY=0,
+        GaussianBlur=fake_blur,
+        Canny=fake_canny,
+        HoughLinesP=fake_hough,
     )
-    assert contour is not None
-    assert np.any(np.all(preview == (0, 255, 0), axis=-1))
+    monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
+
+    image_utils = importlib.import_module("src.image_utils")
+    importlib.reload(image_utils)
+
+    frame = np.full((200, 200, 3), 255, dtype=np.uint8)
+
+    edges = image_utils.find_long_edges(frame, min_length_ratio=0.2)
+    angles = [angle for *_coords, angle in edges]
+    assert any(abs(a) <= 3 for a in angles)
+    assert any(abs(a - 90) <= 3 for a in angles)
