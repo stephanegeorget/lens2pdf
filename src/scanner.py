@@ -123,6 +123,37 @@ def _stack_frames(
     return np.clip(acc, 0, 255).astype(np.uint8)
 
 
+def _open_capture(cam_index: int, cameras) -> cv2.VideoCapture:
+    """Open ``cam_index`` using the backend associated with ``cameras``.
+
+    ``cameras`` may contain :class:`CameraInfo` objects or simple ``(index,
+    name)`` tuples.  If a backend string is available, this function attempts
+    to map it to the corresponding OpenCV constant so that the same backend is
+    used for enumeration and streaming.  This avoids situations where the
+    device order differs between backends (e.g. DirectShow vs Media Foundation
+    on Windows).
+    """
+
+    cam = None
+    for c in cameras:
+        idx = getattr(c, "index", None)
+        if idx is None and isinstance(c, tuple):
+            idx = c[0]
+        if idx == cam_index:
+            cam = c
+            break
+
+    backend_const = None
+    backend_name = getattr(cam, "backend", None) if cam is not None else None
+    if backend_name:
+        const_name = backend_name if backend_name.startswith("CAP_") else f"CAP_{backend_name}"
+        backend_const = getattr(cv2, const_name, None)
+
+    if backend_const is not None:
+        return cv2.VideoCapture(cam_index, backend_const)
+    return cv2.VideoCapture(cam_index)
+
+
 def check_tesseract_installation() -> None:  # pragma: no cover - thin wrapper
     """Proxy to ``ocr_utils.check_tesseract_installation`` using local modules."""
     ocr_utils.shutil = shutil
@@ -160,7 +191,7 @@ def test_camera() -> None:
     _debug_time(start, "after list_cameras")
     cam_index = select_camera(cameras)
     _debug_time(start, "after select_camera")
-    cap = cv2.VideoCapture(cam_index)
+    cap = _open_capture(cam_index, cameras)
     _debug_time(start, "after VideoCapture")
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
@@ -244,7 +275,7 @@ def scan_document(
         _debug_time(start, "after list_cameras")
         cam_index = select_camera(cameras)
         _debug_time(start, "after select_camera")
-        _cached_cap = cv2.VideoCapture(cam_index)
+        _cached_cap = _open_capture(cam_index, cameras)
         _debug_time(start, "after VideoCapture")
         _cached_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3264)
         _cached_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2448)
