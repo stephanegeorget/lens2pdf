@@ -1,4 +1,8 @@
-"""Document scanning and OCR using a CZUR lens camera."""
+"""Document scanning and OCR for overhead cameras such as the CZUR Lens.
+
+The scanner highlights page edges and boosts contrast but does not correct
+perspective, so position the camera parallel to the document.
+"""
 
 from __future__ import annotations
 
@@ -23,7 +27,7 @@ from .image_utils import (
     reduce_jpeg_artifacts,
     correct_orientation,
 )
-from . import ocr_utils
+from . import ocr_utils, __version__
 
 # Re-export modules for tests to monkeypatch
 shutil = ocr_utils.shutil
@@ -208,16 +212,24 @@ def scan_document(
 
     Parameters
     ----------
+    gesture_enabled:
+        Enable hand gesture detection using MediaPipe. When disabled a scan is
+        triggered only by pressing ``s``.
+    boost_contrast:
+        Apply a mild contrast stretch prior to OCR to improve legibility.
+    output_dir:
+        Optional directory in which to save generated PDF files.
     timeout:
         Maximum number of seconds to wait for a scan request before exiting.
         ``None`` disables the timeout.
     stack_count:
-        Number of frames to average together for a single scan.  Using multiple
+        Number of frames to average together for a single scan. Using multiple
         frames can reduce noise and slightly improve effective resolution when
         the document is stationary.
     angle_threshold:
         Maximum allowed deviation in degrees for edges to be drawn green in the
         preview.
+
     Returns
     -------
     bool
@@ -264,6 +276,12 @@ def scan_document(
     stdin_q: queue.Queue[str] = queue.Queue()
 
     def stdin_reader() -> None:
+        """Collect characters typed in the terminal.
+
+        OpenCV's highgui window only receives key events when it has focus; the
+        background thread allows triggering scans from the terminal as well.
+        """
+
         while True:
             ch = sys.stdin.read(1)
             if not ch:
@@ -284,6 +302,7 @@ def scan_document(
             first_frame = False
         display = frame.copy()
 
+        # Show prominent edges so the user can adjust the document alignment.
         edges = find_long_edges(frame)
         for x1, y1, x2, y2, angle in edges:
             diff = min(abs(angle), abs(angle - 90))
@@ -363,6 +382,7 @@ def scan_document(
             frame = None
             break
 
+    # Optionally average several frames to reduce noise.
     if frame is not None and stack_count > 1:
         frame = _stack_frames(cap, frame, stack_count)
 
@@ -378,6 +398,8 @@ def scan_document(
         frame = increase_contrast(frame)
     # Lightly denoise the frame to reduce visible JPEG artifacts before saving
     frame = reduce_jpeg_artifacts(frame)
+
+    # Save the image as a searchable PDF and open it with the default viewer.
     pdf_path = save_pdf(frame, output_dir)
     print(f"Saved {pdf_path}")
     open_pdf(pdf_path)
@@ -385,29 +407,42 @@ def scan_document(
     return True
 
 
-def main() -> None:
-    """Entry point for the scanner script."""
-    parser = argparse.ArgumentParser(description="Document scanner")
+def build_parser() -> argparse.ArgumentParser:
+    """Return the ``argparse`` configuration for the command line interface."""
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Turn an overhead webcam into a document scanner. Perspective is "
+            "not corrected, so keep the camera parallel to the page."
+        ),
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="show program's version number and exit",
+    )
     parser.add_argument(
         "--test-camera",
         action="store_true",
-        help="display camera feed without scanning",
+        help="display raw camera feed and exit; useful for diagnostics",
     )
     parser.add_argument(
         "--no-gesture",
         action="store_true",
-        help="disable hand gesture scan trigger",
+        help="disable MediaPipe V-sign detection; use the 's' key to scan",
     )
     parser.add_argument(
         "--no-contrast",
         action="store_true",
-        help="disable 25% contrast boost",
+        help="skip the 25%% contrast boost before performing OCR",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
-        help="directory to store generated PDF files",
+        help="directory in which to write PDF files",
     )
     parser.add_argument(
         "--angle-threshold",
@@ -415,7 +450,23 @@ def main() -> None:
         default=2,
         help="maximum deviation in degrees for edges to appear green",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--stack-count",
+        type=int,
+        default=10,
+        help=(
+            "number of frames to average for each capture; higher values "
+            "reduce noise at the cost of speed"
+        ),
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Entry point for the scanner script."""
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
     if args.test_camera:
         test_camera()
     else:
@@ -424,6 +475,7 @@ def main() -> None:
             boost_contrast=not args.no_contrast,
             output_dir=args.output_dir,
             timeout=60,
+            stack_count=args.stack_count,
             angle_threshold=args.angle_threshold,
         ):
             pass

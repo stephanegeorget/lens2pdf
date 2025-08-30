@@ -215,6 +215,28 @@ def test_angle_threshold_flag(monkeypatch):
     assert called["angle_threshold"] == 5
 
 
+def test_stack_count_flag(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    called = {}
+
+    def fake_scan(
+        *,
+        gesture_enabled,
+        boost_contrast,
+        output_dir,
+        timeout=None,
+        stack_count=10,
+        angle_threshold=2,
+    ):
+        called["stack_count"] = stack_count
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner", "--stack-count", "3"])
+    scanner.main()
+
+    assert called["stack_count"] == 3
+
+
 def test_default_timeout(monkeypatch):
     scanner = setup_fake_cv2(monkeypatch)
     called = {}
