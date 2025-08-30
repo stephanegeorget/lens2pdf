@@ -13,28 +13,28 @@ from .ocr_utils import check_tesseract_installation
 def find_long_edges(
     image: np.ndarray,
     *,
-    min_length_ratio: float = 0.25,
-    max_edges: int = 20,
+    min_length_ratio: float = 0.05,   # lowered from 0.25
+    max_edges: int = 100,
 ) -> list[tuple[int, int, int, int, float]]:
-    """Return long edges detected in ``image``.
-
-    Edges are detected using Canny edge detection followed by a probabilistic
-    Hough transform.  Only line segments longer than ``min_length_ratio`` times
-    the smaller image dimension are returned.  The segments are sorted by
-    length from longest to shortest and limited to ``max_edges`` entries.
-
-    Returns a list of ``(x1, y1, x2, y2, angle)`` tuples where ``angle`` is the
-    absolute angle of the line segment in degrees.
-    """
+    """Return long edges detected in ``image``."""
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 50, 150)
+
+    # more forgiving Canny thresholds
+    edges = cv2.Canny(blurred, 30, 90)
 
     h, w = gray.shape[:2]
     min_len = int(min(h, w) * min_length_ratio)
+
+    # looser Hough transform parameters
     lines = cv2.HoughLinesP(
-        edges, 1, np.pi / 180, threshold=50, minLineLength=min_len, maxLineGap=10
+        edges,
+        rho=1,
+        theta=np.pi / 180,
+        threshold=20,           # lowered from 50
+        minLineLength=min_len,
+        maxLineGap=30           # increased from 10
     )
 
     results: list[tuple[int, int, int, int, float, float]] = []
@@ -45,10 +45,10 @@ def find_long_edges(
             if angle > 180:
                 angle -= 180
             results.append((x1, y1, x2, y2, angle, length))
+
         results.sort(key=lambda x: x[5], reverse=True)
 
     return [(x1, y1, x2, y2, angle) for x1, y1, x2, y2, angle, _ in results[:max_edges]]
-
 
 def increase_contrast(image: np.ndarray, factor: float = 1.25) -> np.ndarray:
     """Return ``image`` with its contrast scaled by ``factor``."""
