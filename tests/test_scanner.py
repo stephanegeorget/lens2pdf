@@ -348,6 +348,8 @@ def test_scan_document_reuses_camera(monkeypatch):
         waitKey=lambda *a, **k: ord("s"),
         resize=lambda img, *a, **k: img,
         destroyAllWindows=lambda: None,
+        getWindowProperty=lambda *a, **k: 1,
+        WND_PROP_VISIBLE=0,
     )
 
     monkeypatch.setattr(scanner, "cv2", fake_cv2)
@@ -398,6 +400,8 @@ def test_scan_document_stacks_frames(monkeypatch):
         waitKey=lambda *a, **k: ord("s"),
         resize=lambda img, *a, **k: img,
         destroyAllWindows=lambda: None,
+        getWindowProperty=lambda *a, **k: 1,
+        WND_PROP_VISIBLE=0,
     )
 
     monkeypatch.setattr(scanner, "cv2", fake_cv2)
@@ -427,4 +431,106 @@ def test_scan_document_stacks_frames(monkeypatch):
 
     # Frames values were 0, 1 and 2 -> average = 1
     assert saved["img"][0, 0, 0] == 1
+
+
+def test_scan_document_quits_on_q(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+
+    class FakeCapture:
+        def __init__(self, index):
+            pass
+
+        def set(self, *_):
+            pass
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return True, np.zeros((1, 1, 3), dtype=np.uint8)
+
+        def release(self):
+            pass
+
+    fake_cv2 = SimpleNamespace(
+        VideoCapture=FakeCapture,
+        CAP_PROP_FRAME_WIDTH=0,
+        CAP_PROP_FRAME_HEIGHT=0,
+        imshow=lambda *a, **k: None,
+        waitKey=lambda *a, **k: ord("q"),
+        resize=lambda img, *a, **k: img,
+        destroyAllWindows=lambda: None,
+        getWindowProperty=lambda *a, **k: 1,
+        WND_PROP_VISIBLE=0,
+    )
+
+    monkeypatch.setattr(scanner, "cv2", fake_cv2)
+    monkeypatch.setattr(scanner, "list_cameras", lambda: [(0, "cam")])
+    monkeypatch.setattr(scanner, "select_camera", lambda _c: 0)
+    monkeypatch.setattr(scanner, "_create_window", lambda *_: None)
+    monkeypatch.setattr(scanner, "find_long_edges", lambda *a, **k: [])
+    monkeypatch.setattr(scanner, "increase_contrast", lambda img: img)
+    monkeypatch.setattr(scanner, "reduce_jpeg_artifacts", lambda img: img)
+    monkeypatch.setattr(scanner, "correct_orientation", lambda img: img)
+    monkeypatch.setattr(scanner, "save_pdf", lambda img, out: Path("out.pdf"))
+    monkeypatch.setattr(scanner, "open_pdf", lambda _p: None)
+    monkeypatch.setattr(
+        scanner, "sys", SimpleNamespace(stdin=SimpleNamespace(read=lambda n: ""))
+    )
+    monkeypatch.setattr(scanner, "PREVIEW_SCALE", 1.0)
+
+    assert (
+        scanner.scan_document(gesture_enabled=False, boost_contrast=False) is False
+    )
+
+
+def test_scan_document_quits_on_window_close(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+
+    class FakeCapture:
+        def __init__(self, index):
+            pass
+
+        def set(self, *_):
+            pass
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return True, np.zeros((1, 1, 3), dtype=np.uint8)
+
+        def release(self):
+            pass
+
+    fake_cv2 = SimpleNamespace(
+        VideoCapture=FakeCapture,
+        CAP_PROP_FRAME_WIDTH=0,
+        CAP_PROP_FRAME_HEIGHT=0,
+        imshow=lambda *a, **k: None,
+        waitKey=lambda *a, **k: -1,
+        resize=lambda img, *a, **k: img,
+        destroyAllWindows=lambda: None,
+        getWindowProperty=lambda *a, **k: 0,
+        WND_PROP_VISIBLE=0,
+    )
+
+    monkeypatch.setattr(scanner, "cv2", fake_cv2)
+    monkeypatch.setattr(scanner, "list_cameras", lambda: [(0, "cam")])
+    monkeypatch.setattr(scanner, "select_camera", lambda _c: 0)
+    monkeypatch.setattr(scanner, "_create_window", lambda *_: None)
+    monkeypatch.setattr(scanner, "find_long_edges", lambda *a, **k: [])
+    monkeypatch.setattr(scanner, "increase_contrast", lambda img: img)
+    monkeypatch.setattr(scanner, "reduce_jpeg_artifacts", lambda img: img)
+    monkeypatch.setattr(scanner, "correct_orientation", lambda img: img)
+    monkeypatch.setattr(scanner, "save_pdf", lambda img, out: Path("out.pdf"))
+    monkeypatch.setattr(scanner, "open_pdf", lambda _p: None)
+    monkeypatch.setattr(
+        scanner, "sys", SimpleNamespace(stdin=SimpleNamespace(read=lambda n: ""))
+    )
+    monkeypatch.setattr(scanner, "PREVIEW_SCALE", 1.0)
+
+    assert (
+        scanner.scan_document(gesture_enabled=False, boost_contrast=False) is False
+    )
 
