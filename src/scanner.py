@@ -38,18 +38,18 @@ Image = ocr_utils.Image
 # Scale factor for preview windows. ``0.5`` would be half size, ``1.0`` would
 # show the full camera resolution.  Using a quarter-sized preview keeps the
 # on-screen window compact even when the capture resolution is high.
-PREVIEW_SCALE = 0.25
+PREVIEW_SCALE = 0.5
 
 # Scale factor applied before running heavy OpenCV algorithms.  Processing a
 # smaller image reduces CPU usage while the original resolution is kept for
 # the final capture.
-PROCESSING_SCALE = 0.5
+PROCESSING_SCALE = 1.0
 
 # Default capture resolution chosen to balance quality and responsiveness.  A
 # lower resolution keeps the preview smooth while still providing enough detail
 # for OCR.
-CAPTURE_WIDTH = 1600
-CAPTURE_HEIGHT = 1200
+CAPTURE_WIDTH = 2592 # max 3264
+CAPTURE_HEIGHT = 1944 # max 2448
 
 # Cache an opened camera so subsequent scans can reuse the stream without
 # re-enumerating available devices which can take a long time.
@@ -385,7 +385,7 @@ def scan_document(
             if results.multi_hand_landmarks and any(
                 _is_v_sign(h) for h in results.multi_hand_landmarks
             ):
-                for i in (3, 2, 1):
+                for i in (4, 3, 2, 1):
                     ret, frame = cap.read()
                     if not ret:
                         break
