@@ -171,8 +171,16 @@ def _open_capture(cam_index: int, cameras) -> cv2.VideoCapture:
         backend_const = getattr(cv2, const_name, None)
 
     if backend_const is not None:
-        return cv2.VideoCapture(cam_index, backend_const)
-    return cv2.VideoCapture(cam_index)
+        return cv2.VideoCapture(
+            cam_index,
+            backend_const,
+            [cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")],
+        )
+    return cv2.VideoCapture(
+        cam_index,
+        getattr(cv2, "CAP_ANY", 0),
+        [cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")],
+    )
 
 
 def check_tesseract_installation() -> None:  # pragma: no cover - thin wrapper
