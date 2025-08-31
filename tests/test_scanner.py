@@ -117,6 +117,7 @@ def test_no_gesture_flag(monkeypatch):
         timeout=None,
         stack_count=10,
         angle_threshold=2,
+        fast_preview=False,
     ):
         called["args"] = (
             gesture_enabled,
@@ -145,6 +146,7 @@ def test_no_contrast_flag(monkeypatch):
         timeout=None,
         stack_count=10,
         angle_threshold=2,
+        fast_preview=False,
     ):
         called["args"] = (
             gesture_enabled,
@@ -173,6 +175,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
         timeout=None,
         stack_count=10,
         angle_threshold=2,
+        fast_preview=False,
     ):
         called["args"] = (
             gesture_enabled,
@@ -205,6 +208,7 @@ def test_angle_threshold_flag(monkeypatch):
         timeout=None,
         stack_count=10,
         angle_threshold=2,
+        fast_preview=False,
     ):
         called["angle_threshold"] = angle_threshold
 
@@ -227,6 +231,7 @@ def test_stack_count_flag(monkeypatch):
         timeout=None,
         stack_count=10,
         angle_threshold=2,
+        fast_preview=False,
     ):
         called["stack_count"] = stack_count
 
@@ -249,6 +254,7 @@ def test_default_timeout(monkeypatch):
         timeout=None,
         stack_count=10,
         angle_threshold=2,
+        fast_preview=False,
     ):
         called["timeout"] = timeout
 
@@ -257,6 +263,29 @@ def test_default_timeout(monkeypatch):
     scanner.main()
 
     assert called["timeout"] == 60
+
+
+def test_fast_preview_flag(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    called = {}
+
+    def fake_scan(
+        *,
+        gesture_enabled,
+        boost_contrast,
+        output_dir,
+        timeout=None,
+        stack_count=10,
+        angle_threshold=2,
+        fast_preview=False,
+    ):
+        called["fast_preview"] = fast_preview
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner", "--fast-preview"])
+    scanner.main()
+
+    assert called["fast_preview"] is True
 
 
 def test_is_v_sign_sideways(monkeypatch):
