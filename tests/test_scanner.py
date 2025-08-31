@@ -14,6 +14,9 @@ def setup_fake_cv2(monkeypatch):
         def __init__(self, index, *args):
             self.index = index
 
+        def set(self, *_args, **_kwargs):
+            return True
+
         def isOpened(self):
             return False
 
