@@ -51,6 +51,14 @@ PROCESSING_SCALE = 1.0
 CAPTURE_WIDTH = 2592 # max 3264
 CAPTURE_HEIGHT = 1944 # max 2448
 
+# Highest resolution supported by the camera when capturing a still image.
+FULL_RES_WIDTH = 3264
+FULL_RES_HEIGHT = 2448
+
+# Resolution used for a smooth live preview when ``fast_preview`` is enabled.
+VIDEO_PREVIEW_WIDTH = 1920
+VIDEO_PREVIEW_HEIGHT = 1080
+
 # Cache an opened camera so subsequent scans can reuse the stream without
 # re-enumerating available devices which can take a long time.
 _cached_cap: cv2.VideoCapture | None = None
@@ -252,6 +260,7 @@ def scan_document(
     timeout: float | None = None,
     stack_count: int = 10,
     angle_threshold: float = 2,
+    fast_preview: bool = False,
 ) -> bool:
     """Run the interactive document scanner.
 
@@ -274,6 +283,9 @@ def scan_document(
     angle_threshold:
         Maximum allowed deviation in degrees for edges to be drawn green in the
         preview.
+    fast_preview:
+        Use a video-friendly resolution and backend for the live preview and
+        switch to the highest still-image resolution when capturing.
 
     Returns
     -------
@@ -282,22 +294,37 @@ def scan_document(
     """
     start = time.perf_counter()
     print("[DEBUG] Starting scan_document")
-
     global _cached_cap
-    if _cached_cap is None:
+    cameras = None
+    cam_index = None
+    if fast_preview:
         cameras = list_cameras()
         _debug_time(start, "after list_cameras")
         cam_index = select_camera(cameras)
         _debug_time(start, "after select_camera")
-        _cached_cap = _open_capture(cam_index, cameras)
+        cap = cv2.VideoCapture(cam_index, getattr(cv2, "CAP_MSMF", 0))
         _debug_time(start, "after VideoCapture")
-        _cached_cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAPTURE_WIDTH)
-        _cached_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAPTURE_HEIGHT)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, VIDEO_PREVIEW_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, VIDEO_PREVIEW_HEIGHT)
         _debug_time(start, "after setting resolution")
-        if not _cached_cap.isOpened():
+        if not cap.isOpened():
             raise RuntimeError("Unable to open camera")
         _debug_time(start, "after cap.isOpened")
-    cap = _cached_cap
+    else:
+        if _cached_cap is None:
+            cameras = list_cameras()
+            _debug_time(start, "after list_cameras")
+            cam_index = select_camera(cameras)
+            _debug_time(start, "after select_camera")
+            _cached_cap = _open_capture(cam_index, cameras)
+            _debug_time(start, "after VideoCapture")
+            _cached_cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAPTURE_WIDTH)
+            _cached_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAPTURE_HEIGHT)
+            _debug_time(start, "after setting resolution")
+            if not _cached_cap.isOpened():
+                raise RuntimeError("Unable to open camera")
+            _debug_time(start, "after cap.isOpened")
+        cap = _cached_cap
 
     _create_window("Scanner")
     _debug_time(start, "after namedWindow")
@@ -336,6 +363,7 @@ def scan_document(
     threading.Thread(target=stdin_reader, daemon=True).start()
 
     frame = None
+    capture_triggered = False
     first_frame = True
     wait_start = time.monotonic()
     while True:
@@ -420,6 +448,7 @@ def scan_document(
                     cv2.imshow("Scanner", display)
                     cv2.waitKey(1000)
                 ret, frame = cap.read()
+                capture_triggered = True
                 break
 
         if PREVIEW_SCALE != 1.0:
@@ -440,6 +469,7 @@ def scan_document(
             key_char = stdin_q.get_nowait().lower()
 
         if key_char == "s" or key == 13:
+            capture_triggered = True
             break
         if (
             key_char == "q"
@@ -452,14 +482,35 @@ def scan_document(
             frame = None
             break
 
-    # Optionally average several frames to reduce noise.
-    if frame is not None and stack_count > 1:
-        frame = _stack_frames(cap, frame, stack_count)
-
-    if frame is None:
+    if fast_preview:
         cap.release()
-        _cached_cap = None
+        if not capture_triggered:
+            cv2.destroyAllWindows()
+            return False
+        cap = _open_capture(cam_index, cameras)
+        _debug_time(start, "after reopen for capture")
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, FULL_RES_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FULL_RES_HEIGHT)
+        _debug_time(start, "after setting full resolution")
+        ret, frame = cap.read()
+        if not ret:
+            cap.release()
+            cv2.destroyAllWindows()
+            return False
+        if stack_count > 1:
+            frame = _stack_frames(cap, frame, stack_count)
+        cap.release()
+    else:
+        if not capture_triggered:
+            cap.release()
+            _cached_cap = None
+            cv2.destroyAllWindows()
+            return False
+        if frame is not None and stack_count > 1:
+            frame = _stack_frames(cap, frame, stack_count)
+
     cv2.destroyAllWindows()
+
     if frame is None:
         return False
 
@@ -529,6 +580,14 @@ def build_parser() -> argparse.ArgumentParser:
             "reduce noise at the cost of speed"
         ),
     )
+    parser.add_argument(
+        "--fast-preview",
+        action="store_true",
+        help=(
+            "use a smooth MSMF preview and switch to full resolution for the "
+            "actual scan"
+        ),
+    )
     return parser
 
 
@@ -547,6 +606,7 @@ def main(argv: list[str] | None = None) -> None:
             timeout=60,
             stack_count=args.stack_count,
             angle_threshold=args.angle_threshold,
+            fast_preview=args.fast_preview,
         ):
             pass
 
