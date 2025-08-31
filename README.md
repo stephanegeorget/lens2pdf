@@ -22,6 +22,7 @@ camera parallel to the document for best results.
 
 - Python 3.12 or newer
 - Tesseract OCR
+- FFmpeg (for camera discovery)
 - Python packages listed in `requirements.txt`
 
 ## Quick start

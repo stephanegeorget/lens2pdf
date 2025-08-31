@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 import numpy as np
 import pytest
+import subprocess
 
 
 
@@ -23,16 +24,7 @@ def setup_fake_cv2(monkeypatch):
         def release(self):
             pass
 
-    info1 = SimpleNamespace(id=0, name="Generic Cam")
-    info2 = SimpleNamespace(id=1, name="CZUR E012A")
-
-    registry = SimpleNamespace(
-        getCameraInfoList=lambda: [info1, info2],
-        getBackends=lambda: [1],
-        getBackendName=lambda _b: "FAKE",
-    )
     fake_cv2 = SimpleNamespace(
-        videoio_registry=registry,
         VideoCapture=FakeCapture,
         CAP_PROP_FOURCC=0,
         VideoWriter_fourcc=lambda *a: 0,
@@ -41,9 +33,21 @@ def setup_fake_cv2(monkeypatch):
     # ``scanner`` imports ``cv2``, ``numpy`` and ``pytesseract`` at module import
     # time.  Provide a stub for ``cv2`` and ``pytesseract`` while using the real
     # NumPy implementation so image stacking logic can be exercised.
+    ffmpeg_output = (
+        "[dshow @ 123]  \"Generic Cam\"\n"
+        "[dshow @ 123]     Alternative name \"cam0\"\n"
+        "[dshow @ 123]  \"CZUR E012A\"\n"
+        "[dshow @ 123]     Alternative name \"cam1\"\n"
+    )
+
+    def fake_run(_cmd, **_kwargs):
+        return SimpleNamespace(stderr=ffmpeg_output)
+
     monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
     monkeypatch.setitem(sys.modules, "numpy", np)
     monkeypatch.setitem(sys.modules, "pytesseract", SimpleNamespace())
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(sys, "platform", "linux")
 
     import src.scanner as scanner
     importlib.reload(scanner)
