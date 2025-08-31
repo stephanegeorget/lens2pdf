@@ -11,7 +11,7 @@ def setup_fake_cv2(monkeypatch):
     """Return the scanner module loaded with a stubbed cv2 module."""
 
     class FakeCapture:
-        def __init__(self, index):
+        def __init__(self, index, *args):
             self.index = index
 
         def isOpened(self):
@@ -31,6 +31,8 @@ def setup_fake_cv2(monkeypatch):
     fake_cv2 = SimpleNamespace(
         videoio_registry=registry,
         VideoCapture=FakeCapture,
+        CAP_PROP_FOURCC=0,
+        VideoWriter_fourcc=lambda *a: 0,
         __version__="4.8.0",
     )
     # ``scanner`` imports ``cv2``, ``numpy`` and ``pytesseract`` at module import
@@ -376,7 +378,7 @@ def test_scan_document_reuses_camera(monkeypatch):
         return 0
 
     class FakeCapture:
-        def __init__(self, index):
+        def __init__(self, index, *args):
             calls["open"] += 1
 
         def set(self, *_args):
@@ -395,6 +397,8 @@ def test_scan_document_reuses_camera(monkeypatch):
         VideoCapture=FakeCapture,
         CAP_PROP_FRAME_WIDTH=0,
         CAP_PROP_FRAME_HEIGHT=0,
+        CAP_PROP_FOURCC=0,
+        VideoWriter_fourcc=lambda *a: 0,
         imshow=lambda *a, **k: None,
         waitKey=lambda *a, **k: ord("s"),
         resize=lambda img, *a, **k: img,
@@ -426,7 +430,7 @@ def test_scan_document_stacks_frames(monkeypatch):
     scanner = setup_fake_cv2(monkeypatch)
 
     class FakeCapture:
-        def __init__(self, index):
+        def __init__(self, index, *args):
             self.count = 0
 
         def set(self, *_):
@@ -447,6 +451,8 @@ def test_scan_document_stacks_frames(monkeypatch):
         VideoCapture=FakeCapture,
         CAP_PROP_FRAME_WIDTH=0,
         CAP_PROP_FRAME_HEIGHT=0,
+        CAP_PROP_FOURCC=0,
+        VideoWriter_fourcc=lambda *a: 0,
         imshow=lambda *a, **k: None,
         waitKey=lambda *a, **k: ord("s"),
         resize=lambda img, *a, **k: img,
@@ -488,7 +494,7 @@ def test_scan_document_quits_on_q(monkeypatch):
     scanner = setup_fake_cv2(monkeypatch)
 
     class FakeCapture:
-        def __init__(self, index):
+        def __init__(self, index, *args):
             pass
 
         def set(self, *_):
@@ -507,6 +513,8 @@ def test_scan_document_quits_on_q(monkeypatch):
         VideoCapture=FakeCapture,
         CAP_PROP_FRAME_WIDTH=0,
         CAP_PROP_FRAME_HEIGHT=0,
+        CAP_PROP_FOURCC=0,
+        VideoWriter_fourcc=lambda *a: 0,
         imshow=lambda *a, **k: None,
         waitKey=lambda *a, **k: ord("q"),
         resize=lambda img, *a, **k: img,
@@ -539,7 +547,7 @@ def test_scan_document_quits_on_window_close(monkeypatch):
     scanner = setup_fake_cv2(monkeypatch)
 
     class FakeCapture:
-        def __init__(self, index):
+        def __init__(self, index, *args):
             pass
 
         def set(self, *_):
@@ -558,6 +566,8 @@ def test_scan_document_quits_on_window_close(monkeypatch):
         VideoCapture=FakeCapture,
         CAP_PROP_FRAME_WIDTH=0,
         CAP_PROP_FRAME_HEIGHT=0,
+        CAP_PROP_FOURCC=0,
+        VideoWriter_fourcc=lambda *a: 0,
         imshow=lambda *a, **k: None,
         waitKey=lambda *a, **k: -1,
         resize=lambda img, *a, **k: img,
