@@ -7,22 +7,15 @@ import re
 import sys
 import time
 import io
+import subprocess
 from dataclasses import dataclass
 from typing import List
 
 import cv2
 
 # Windows-specific helpers
-FilterGraph = None
 if sys.platform == "win32":
     import msvcrt
-
-    try:
-        from pygrabber.dshow_graph import FilterGraph as _FG
-
-        FilterGraph = _FG
-    except ImportError:
-        print("Warning: pygrabber not installed, camera names may not be accurate.")
 
 # Match any CZUR-branded device regardless of model suffix.
 CAMERA_REGEX = re.compile(r"czur", re.IGNORECASE)
@@ -102,66 +95,68 @@ def list_cameras(max_devices: int = 5) -> List[CameraInfo]:
     print(f"OpenCV version: {getattr(cv2, '__version__', 'unknown')}")
     cameras: list[CameraInfo] = []
 
-    win_names: list[str] = []
-    if sys.platform == "win32" and FilterGraph is not None:
-        try:
-            graph = FilterGraph()
-            win_names = graph.get_input_devices()
-        except Exception:
-            pass
+    if sys.platform == "win32":
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-f",
+            "dshow",
+            "-list_devices",
+            "true",
+            "-i",
+            "dummy",
+        ]
+    elif sys.platform == "darwin":
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-f",
+            "avfoundation",
+            "-list_devices",
+            "true",
+            "-i",
+            "",
+        ]
+    else:
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-f",
+            "v4l2",
+            "-list_devices",
+            "true",
+            "-i",
+            "dummy",
+        ]
 
-    registry = getattr(cv2, "videoio_registry", None)
-    if registry and hasattr(registry, "getCameraInfoList"):
-        try:
-            infos = registry.getCameraInfoList()
-            backend = None
-            if hasattr(registry, "getBackends") and hasattr(registry, "getBackendName"):
-                backends = registry.getBackends()
-                if backends:
-                    try:
-                        backend = registry.getBackendName(backends[0])
-                    except Exception:
-                        backend = None
-            for info in infos:
-                cameras.append(
-                    CameraInfo(
-                        index=getattr(info, "id", len(cameras)),
-                        name=getattr(info, "name", f"Camera {len(cameras)}"),
-                        backend=str(backend) if backend else None,
-                    )
-                )
-        except Exception:
-            pass
-    if cameras:
-        return cameras
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        output = result.stderr
+    except Exception as exc:  # pragma: no cover - ffmpeg may be missing
+        print(f"Unable to run ffmpeg: {exc}")
+        output = ""
 
-    print("Probing camera indices...")
-    for index in range(max_devices):
-        if sys.platform == "win32" and hasattr(cv2, "CAP_DSHOW"):
-            cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
-        else:
-            cap = cv2.VideoCapture(index)
-        if cap.isOpened():
-            name = f"Camera {index}"
-            if sys.platform == "win32" and index < len(win_names):
-                name = win_names[index]
-            backend = None
-            try:
-                backend = cap.getBackendName()  # type: ignore[attr-defined]
-            except Exception:
-                pass
+    current_name = None
+    for line in output.splitlines():
+        alt = re.search(r'Alternative name\s+"([^"]+)"', line)
+        if alt and current_name:
             cameras.append(
                 CameraInfo(
-                    index=index,
-                    name=name,
-                    backend=str(backend) if backend else None,
+                    index=len(cameras),
+                    name=current_name,
+                    backend="FFMPEG",
+                    hw_address=alt.group(1),
                 )
             )
-            print(f"  index {index}: name={name} backend={backend}")
-        else:
-            cap.release()
-            break
-        cap.release()
+            current_name = None
+            continue
+
+        m = re.search(r'\]\s+"([^"]+)"$', line)
+        if m:
+            current_name = m.group(1)
+
+    if not cameras:
+        print("No cameras detected by ffmpeg")
     return cameras
 
 

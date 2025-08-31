@@ -170,7 +170,10 @@ def _open_capture(cam_index: int, cameras) -> cv2.VideoCapture:
         )
         backend_const = getattr(cv2, const_name, None)
 
-    if backend_const is not None:
+    hw = getattr(cam, "hw_address", None) if cam is not None else None
+    if hw:
+        cap = cv2.VideoCapture(hw, getattr(cv2, "CAP_FFMPEG", 0))
+    elif backend_const is not None:
         cap = cv2.VideoCapture(cam_index, backend_const)
     else:
         cap = cv2.VideoCapture(cam_index, getattr(cv2, "CAP_ANY", 0))
