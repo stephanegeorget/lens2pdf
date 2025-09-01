@@ -297,6 +297,36 @@ def test_fast_preview_flag(monkeypatch):
     assert called["fast_preview"] is True
 
 
+def test_runs_once_by_default(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    calls = {"count": 0}
+
+    def fake_scan(**kwargs):
+        calls["count"] += 1
+        return True
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner"])
+    scanner.main()
+
+    assert calls["count"] == 1
+
+
+def test_loop_flag_runs_multiple_times(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    calls = {"count": 0}
+
+    def fake_scan(**kwargs):
+        calls["count"] += 1
+        return calls["count"] < 2
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner", "--loop"])
+    scanner.main()
+
+    assert calls["count"] == 2
+
+
 def test_is_v_sign_sideways(monkeypatch):
     """The V gesture should be detected even when rotated 90 degrees."""
     scanner = setup_fake_cv2(monkeypatch)

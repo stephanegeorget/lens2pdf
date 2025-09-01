@@ -17,6 +17,7 @@ camera parallel to the document for best results.
 - **Opens PDFs automatically** – each capture is written to a timestamped PDF.
 - **Overhead camera recommended** – works best with devices like the CZUR Lens
   and other cameras mounted perpendicular to the page.
+- **Optional looping** – add `--loop` to start a new scan after each PDF is saved.
 
 ## Requirements
 
@@ -43,7 +44,8 @@ python -m src.scanner
 ```
 
 Hold a document in view and show a V sign (or press `s`) to capture. Press `q`
-to quit.
+to quit. By default the application exits after saving the PDF. Pass `--loop`
+to automatically return to scanning for the next document.
 
 ### Preview window and performance
 

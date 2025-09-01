@@ -595,6 +595,11 @@ def build_parser() -> argparse.ArgumentParser:
             "actual scan"
         ),
     )
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="after saving a PDF, start a new scan instead of exiting",
+    )
     return parser
 
 
@@ -606,16 +611,27 @@ def main(argv: list[str] | None = None) -> None:
     if args.test_camera:
         test_camera()
     else:
-        while scan_document(
-            gesture_enabled=not args.no_gesture,
-            boost_contrast=not args.no_contrast,
-            output_dir=args.output_dir,
-            timeout=60,
-            stack_count=args.stack_count,
-            angle_threshold=args.angle_threshold,
-            fast_preview=args.fast_preview,
-        ):
-            pass
+        if args.loop:
+            while scan_document(
+                gesture_enabled=not args.no_gesture,
+                boost_contrast=not args.no_contrast,
+                output_dir=args.output_dir,
+                timeout=60,
+                stack_count=args.stack_count,
+                angle_threshold=args.angle_threshold,
+                fast_preview=args.fast_preview,
+            ):
+                pass
+        else:
+            scan_document(
+                gesture_enabled=not args.no_gesture,
+                boost_contrast=not args.no_contrast,
+                output_dir=args.output_dir,
+                timeout=60,
+                stack_count=args.stack_count,
+                angle_threshold=args.angle_threshold,
+                fast_preview=args.fast_preview,
+            )
 
 
 if __name__ == "__main__":
