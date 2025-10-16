@@ -10,6 +10,30 @@ import pytesseract
 from .ocr_utils import check_tesseract_installation
 
 
+def normalize_brightness(image: np.ndarray) -> np.ndarray:
+    """Scale ``image`` so its brightest pixels reach full intensity."""
+
+    if image.size == 0:
+        return image
+
+    img = image.astype(np.float32)
+
+    if img.ndim == 2:
+        max_val = float(img.max())
+        if max_val <= 0:
+            return image
+        scale = 255.0 / max_val
+        adjusted = img * scale
+    else:
+        max_vals = img.reshape(-1, img.shape[-1]).max(axis=0)
+        scale = np.ones_like(max_vals)
+        nonzero = max_vals > 0
+        scale[nonzero] = 255.0 / max_vals[nonzero]
+        adjusted = img * scale.reshape(1, 1, -1)
+
+    return np.clip(adjusted, 0, 255).astype(np.uint8)
+
+
 def find_long_edges(
     image: np.ndarray,
     *,
@@ -84,4 +108,5 @@ __all__ = [
     "increase_contrast",
     "reduce_jpeg_artifacts",
     "correct_orientation",
+    "normalize_brightness",
 ]

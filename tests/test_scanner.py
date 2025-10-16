@@ -118,6 +118,7 @@ def test_no_gesture_flag(monkeypatch):
         *,
         gesture_enabled,
         boost_contrast,
+        auto_brightness,
         output_dir,
         timeout=None,
         stack_count=10,
@@ -127,6 +128,7 @@ def test_no_gesture_flag(monkeypatch):
         called["args"] = (
             gesture_enabled,
             boost_contrast,
+            auto_brightness,
             output_dir,
             stack_count,
             angle_threshold,
@@ -136,7 +138,7 @@ def test_no_gesture_flag(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-gesture"])
     scanner.main()
 
-    assert called["args"] == (False, True, None, 10, 2)
+    assert called["args"] == (False, True, True, None, 10, 2)
 
 
 def test_no_contrast_flag(monkeypatch):
@@ -147,6 +149,7 @@ def test_no_contrast_flag(monkeypatch):
         *,
         gesture_enabled,
         boost_contrast,
+        auto_brightness,
         output_dir,
         timeout=None,
         stack_count=10,
@@ -156,6 +159,7 @@ def test_no_contrast_flag(monkeypatch):
         called["args"] = (
             gesture_enabled,
             boost_contrast,
+            auto_brightness,
             output_dir,
             stack_count,
             angle_threshold,
@@ -165,7 +169,31 @@ def test_no_contrast_flag(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["scanner", "--no-contrast"])
     scanner.main()
 
-    assert called["args"] == (True, False, None, 10, 2)
+    assert called["args"] == (True, False, True, None, 10, 2)
+
+
+def test_no_brightness_correction_flag(monkeypatch):
+    scanner = setup_fake_cv2(monkeypatch)
+    called = {}
+
+    def fake_scan(
+        *,
+        gesture_enabled,
+        boost_contrast,
+        auto_brightness,
+        output_dir,
+        timeout=None,
+        stack_count=10,
+        angle_threshold=2,
+        fast_preview=False,
+    ):
+        called["auto_brightness"] = auto_brightness
+
+    monkeypatch.setattr(scanner, "scan_document", fake_scan)
+    monkeypatch.setattr(sys, "argv", ["scanner", "--no-brightness-correction"])
+    scanner.main()
+
+    assert called["auto_brightness"] is False
 
 
 def test_output_dir_flag(monkeypatch, tmp_path):
@@ -176,6 +204,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
         *,
         gesture_enabled,
         boost_contrast,
+        auto_brightness,
         output_dir,
         timeout=None,
         stack_count=10,
@@ -185,6 +214,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
         called["args"] = (
             gesture_enabled,
             boost_contrast,
+            auto_brightness,
             output_dir,
             stack_count,
             angle_threshold,
@@ -198,7 +228,7 @@ def test_output_dir_flag(monkeypatch, tmp_path):
     )
     scanner.main()
 
-    assert called["args"] == (True, True, str(tmp_path), 10, 2)
+    assert called["args"] == (True, True, True, str(tmp_path), 10, 2)
 
 
 def test_angle_threshold_flag(monkeypatch):
@@ -209,6 +239,7 @@ def test_angle_threshold_flag(monkeypatch):
         *,
         gesture_enabled,
         boost_contrast,
+        auto_brightness,
         output_dir,
         timeout=None,
         stack_count=10,
@@ -232,6 +263,7 @@ def test_stack_count_flag(monkeypatch):
         *,
         gesture_enabled,
         boost_contrast,
+        auto_brightness,
         output_dir,
         timeout=None,
         stack_count=10,
@@ -255,6 +287,7 @@ def test_default_timeout(monkeypatch):
         *,
         gesture_enabled,
         boost_contrast,
+        auto_brightness,
         output_dir,
         timeout=None,
         stack_count=10,
@@ -278,6 +311,7 @@ def test_fast_preview_flag(monkeypatch):
         *,
         gesture_enabled,
         boost_contrast,
+        auto_brightness,
         output_dir,
         timeout=None,
         stack_count=10,
@@ -486,6 +520,7 @@ def test_scan_document_stacks_frames(monkeypatch):
     scanner.scan_document(
         gesture_enabled=False,
         boost_contrast=False,
+        auto_brightness=False,
         stack_count=3,
     )
 

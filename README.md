@@ -14,6 +14,9 @@ camera parallel to the document for best results.
 - **Orientation and OCR** – uses [Tesseract](https://github.com/tesseract-ocr/tesseract)
   to rotate pages upright and embed recognised text.
 - **Contrast boost and frame stacking** – improves legibility and reduces noise.
+- **Automatic brightness normalization** – stretches the brightest pixels to
+  white so light documents render crisply (disable with
+  `--no-brightness-correction`).
 - **Opens PDFs automatically** – each capture is written to a timestamped PDF.
 - **Overhead camera recommended** – works best with devices like the CZUR Lens
   and other cameras mounted perpendicular to the page.
@@ -43,6 +46,11 @@ python -m src.scanner
 
 Hold a document in view and show a V sign (or press `s`) to capture. Press `q`
 to quit.
+
+## Release channels
+
+The `stable` branch contains the most reliable builds. Check out this branch if
+you want the version with the fewest in-progress changes.
 
 ### Preview window and performance
 
