@@ -26,6 +26,7 @@ from .image_utils import (
     increase_contrast,
     reduce_jpeg_artifacts,
     correct_orientation,
+    normalize_brightness,
 )
 from . import ocr_utils, __version__
 
@@ -260,6 +261,7 @@ def test_camera() -> None:
 def scan_document(
     gesture_enabled: bool = True,
     boost_contrast: bool = True,
+    auto_brightness: bool = True,
     output_dir: Path | str | None = None,
     timeout: float | None = None,
     stack_count: int = 10,
@@ -275,6 +277,10 @@ def scan_document(
         triggered only by pressing ``s``.
     boost_contrast:
         Apply a mild contrast stretch prior to OCR to improve legibility.
+    auto_brightness:
+        Normalize the captured frame so the brightest pixels map to full
+        intensity. This compensates for flat lighting when scanning light
+        documents.
     output_dir:
         Optional directory in which to save generated PDF files.
     timeout:
@@ -519,6 +525,8 @@ def scan_document(
         return False
 
     frame = correct_orientation(frame)
+    if auto_brightness:
+        frame = normalize_brightness(frame)
     if boost_contrast:
         frame = increase_contrast(frame)
     # Lightly denoise the frame to reduce visible JPEG artifacts before saving
@@ -561,7 +569,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-contrast",
         action="store_true",
-        help="skip the 25%% contrast boost before performing OCR",
+        help="skip the 25% contrast boost before performing OCR",
+    )
+    parser.add_argument(
+        "--no-brightness-correction",
+        action="store_true",
+        help="disable stretching the brightest pixels to full intensity",
     )
     parser.add_argument(
         "--output-dir",
@@ -606,6 +619,7 @@ def main(argv: list[str] | None = None) -> None:
         while scan_document(
             gesture_enabled=not args.no_gesture,
             boost_contrast=not args.no_contrast,
+            auto_brightness=not args.no_brightness_correction,
             output_dir=args.output_dir,
             timeout=60,
             stack_count=args.stack_count,

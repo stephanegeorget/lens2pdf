@@ -39,6 +39,39 @@ def test_reduce_jpeg_artifacts(monkeypatch):
     assert called["args"] == (10, 10, 7, 21)
 
 
+def test_normalize_brightness_scales_each_channel(monkeypatch):
+    monkeypatch.setitem(sys.modules, "cv2", types.SimpleNamespace())
+    image_utils = importlib.import_module("src.image_utils")
+    importlib.reload(image_utils)
+
+    img = np.array(
+        [
+            [[100, 120, 200], [50, 60, 100]],
+        ],
+        dtype=np.uint8,
+    )
+
+    expected = np.clip(
+        img.astype(np.float32)
+        * np.array([255.0 / 100, 255.0 / 120, 255.0 / 200], dtype=np.float32),
+        0,
+        255,
+    ).astype(np.uint8)
+
+    result = image_utils.normalize_brightness(img)
+    assert np.array_equal(result, expected)
+
+
+def test_normalize_brightness_handles_dark_frames(monkeypatch):
+    monkeypatch.setitem(sys.modules, "cv2", types.SimpleNamespace())
+    image_utils = importlib.import_module("src.image_utils")
+    importlib.reload(image_utils)
+
+    img = np.zeros((2, 2, 3), dtype=np.uint8)
+    result = image_utils.normalize_brightness(img)
+    assert np.array_equal(result, img)
+
+
 def test_find_long_edges_detects_axes(monkeypatch):
     def fake_cvtColor(img, code):
         return img[:, :, 0]
