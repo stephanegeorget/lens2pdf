@@ -10,8 +10,18 @@ import pytesseract
 from .ocr_utils import check_tesseract_installation
 
 
+WHITE_POINT_PERCENTILE = 85.0
+
+
 def normalize_brightness(image: np.ndarray) -> np.ndarray:
-    """Scale ``image`` so its brightest pixels reach full intensity."""
+    """Scale ``image`` so its near-white pixels reach full intensity.
+
+    Instead of stretching the dynamic range so that only the single
+    brightest pixel maps to ``255``, we treat the top ``WHITE_POINT_PERCENTILE``
+    of intensities as paper white.  This intentionally clips highlights so
+    that slightly dull regions of the page are pushed to pure white which
+    better matches the behaviour of a document scanner.
+    """
 
     if image.size == 0:
         return image
@@ -19,16 +29,17 @@ def normalize_brightness(image: np.ndarray) -> np.ndarray:
     img = image.astype(np.float32)
 
     if img.ndim == 2:
-        max_val = float(img.max())
-        if max_val <= 0:
+        white_point = float(np.percentile(img, WHITE_POINT_PERCENTILE))
+        if white_point <= 0:
             return image
-        scale = 255.0 / max_val
+        scale = 255.0 / white_point
         adjusted = img * scale
     else:
-        max_vals = img.reshape(-1, img.shape[-1]).max(axis=0)
-        scale = np.ones_like(max_vals)
-        nonzero = max_vals > 0
-        scale[nonzero] = 255.0 / max_vals[nonzero]
+        reshaped = img.reshape(-1, img.shape[-1])
+        white_points = np.percentile(reshaped, WHITE_POINT_PERCENTILE, axis=0)
+        scale = np.ones_like(white_points, dtype=np.float32)
+        nonzero = white_points > 0
+        scale[nonzero] = 255.0 / white_points[nonzero]
         adjusted = img * scale.reshape(1, 1, -1)
 
     return np.clip(adjusted, 0, 255).astype(np.uint8)
