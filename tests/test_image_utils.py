@@ -51,9 +51,13 @@ def test_normalize_brightness_scales_each_channel(monkeypatch):
         dtype=np.uint8,
     )
 
+    reshaped = img.reshape(-1, img.shape[-1])
+    white_points = np.percentile(
+        reshaped, image_utils.WHITE_POINT_PERCENTILE, axis=0
+    )
     expected = np.clip(
         img.astype(np.float32)
-        * np.array([255.0 / 100, 255.0 / 120, 255.0 / 200], dtype=np.float32),
+        * (255.0 / white_points).reshape(1, 1, -1),
         0,
         255,
     ).astype(np.uint8)
@@ -70,6 +74,24 @@ def test_normalize_brightness_handles_dark_frames(monkeypatch):
     img = np.zeros((2, 2, 3), dtype=np.uint8)
     result = image_utils.normalize_brightness(img)
     assert np.array_equal(result, img)
+
+
+def test_normalize_brightness_clips_highlights(monkeypatch):
+    monkeypatch.setitem(sys.modules, "cv2", types.SimpleNamespace())
+    image_utils = importlib.import_module("src.image_utils")
+    importlib.reload(image_utils)
+
+    img = np.array(
+        [
+            [200, 220, 230, 240],
+            [10, 20, 30, 40],
+        ],
+        dtype=np.uint8,
+    )
+
+    result = image_utils.normalize_brightness(img)
+    assert result[0].max() == 255
+    assert 255 - result[0].min() <= 35
 
 
 def test_find_long_edges_detects_axes(monkeypatch):
